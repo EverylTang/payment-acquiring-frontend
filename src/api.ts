@@ -52,6 +52,8 @@ export const getCurrentUser = () => request<CurrentUser>('/admin/v1/auth/me');
 export const getAccess = () => request<AccessResponse>('/admin/v1/access');
 
 export type AdminUser = { id: number; username: string; displayName: string; status: string; roles: string[] };
+export type AdminRole = { id: number; roleCode: string; roleName: string };
+export const getRoles = () => request<AdminRole[]>('/admin/v1/roles');
 export type MerchantProduct = { bindingId: string; merchantId: string; merchantName: string; productCode: string; productName: string; status: string; createdAt: string; updatedAt: string };
 export const getUsers = () => request<AdminUser[]>('/admin/v1/users');
 export const createUser = (payload: { username: string; password: string; displayName: string; roles: string[] }) => request<AdminUser>('/admin/v1/users', { method: 'POST', body: JSON.stringify(payload) });
