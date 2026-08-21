@@ -1,8 +1,127 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { Activity, ArrowUpRight, Bell, ChevronDown, CircleDollarSign, LayoutDashboard, ListFilter, Network, Settings2, ShieldCheck, Store, WalletCards } from 'lucide-vue-next';
+import { computed, onMounted, ref } from 'vue';
+import { Activity, CircleDollarSign, LayoutDashboard, Layers3, Link, LoaderCircle, Network, RefreshCw, Search, Settings2, ShieldCheck, Store, WalletCards, XCircle } from 'lucide-vue-next';
+import { bindMerchantProduct, callbackOrder, cancelOrder, createOrder, createUser, getAdminList, getChannelHealth, getMerchantProducts, getOrder, getOrderHealth, getOrderPage, getOrderStatus, getOrderStatistics, getOverview, getSnapshot, getUsers, type AdminRecord, type AdminUser, type CreateOrderRequest, type DashboardOverview, type MerchantProduct, type Order, type OrderPage } from './api';
+import { authState, signOut } from './auth';
+
 const active = ref('总览');
-const menu = [{ label: '总览', icon: LayoutDashboard }, { label: '订单与支付', icon: WalletCards }, { label: '商户与产品', icon: Store }, { label: '路由与渠道', icon: Network }, { label: '费率与结算', icon: CircleDollarSign }, { label: '风控工作台', icon: ShieldCheck }];
-const orders = [{ id: 'PO-20260820-00182', merchant: 'Nova Games', amount: '¥ 12,840.00', channel: 'UnionPay · H5', status: '支付中', time: '23:41:08' }, { id: 'PO-20260820-00181', merchant: 'Cloud Kitchen', amount: '¥ 3,280.00', channel: 'Visa · 3DS', status: '已成功', time: '23:39:54' }, { id: 'PO-20260820-00180', merchant: 'Lumen Travel', amount: '¥ 8,900.00', channel: '当地转账', status: '待风控', time: '23:38:17' }];
+const busy = ref(false);
+const notice = ref('');
+const queryId = ref('');
+const selectedOrder = ref<Order | null>(null);
+const orderForm = ref<CreateOrderRequest>({ merchantId: 'merchant-demo', merchantOrderNo: `web-${Date.now()}`, productCode: 'CARD-US-USD', paymentMethod: 'CARD', country: 'US', currency: 'USD', amount: 100 });
+const overview = ref<DashboardOverview | null>(null);
+const records = ref<AdminRecord[]>([]);
+const merchantProducts = ref<MerchantProduct[]>([]);
+const users = ref<AdminUser[]>([]);
+const userForm = ref({ username: '', password: '', displayName: '', roles: 'OPS' });
+const bindingForm = ref({ merchantId: 'merchant-demo', productCode: 'CARD-US-USD' });
+const orderPage = ref<OrderPage>({ items: [], page: 1, pageSize: 10, total: 0 });
+const orderFilters = ref({ merchantId: '', status: '', currency: '' });
+const listLoading = ref(false);
+const snapshotForm = ref({ merchantId: 'merchant-demo', productCode: 'CARD-US-USD', paymentMethod: 'CARD', currency: 'USD' });
+const snapshot = ref<Record<string, unknown> | null>(null);
+const channelHealth = ref('检查中');
+const serviceOnline = ref(true);
+const iconMap = { LayoutDashboard, WalletCards, Store, Layers3, Link, Network, CircleDollarSign, ShieldCheck, Settings2 };
+const menu = computed(() => {
+  const accessMenu = (authState.access?.menus || []).filter(item => item.menuType === 'PAGE').map(item => ({ label: item.menuName, icon: iconMap[item.icon as keyof typeof iconMap] || Store }));
+  return accessMenu.length ? accessMenu : fallbackMenu;
+});
+const fallbackMenu = [{ label: '总览', icon: LayoutDashboard }, { label: '订单与支付', icon: WalletCards }, { label: '商户管理', icon: Store }, { label: '产品管理', icon: Layers3 }, { label: '商户产品', icon: Link }];
+const resourceMap: Record<string, string> = { '商户管理': 'merchants', '产品管理': 'products', '路由与渠道': 'channels', '费率与结算': 'pricing-rules', '风控工作台': 'risk-policies' };
+const isOverview = computed(() => active.value === '总览');
+const run = async <T,>(action: () => Promise<T>, success = '') => {
+  busy.value = true;
+  notice.value = '';
+  try { const result = await action(); notice.value = success; return result; }
+  catch (error) { notice.value = error instanceof Error ? error.message : '请求失败'; }
+  finally { busy.value = false; }
+};
+const loadOverview = async () => {
+  const result = await run(async () => {
+    const [platformOverview, orderStatistics] = await Promise.all([getOverview(), getOrderStatistics()]);
+    return {
+      ...platformOverview,
+      paymentSuccessRate: orderStatistics.paymentSuccessRate,
+      paymentVolume: orderStatistics.paymentVolume,
+      activeMerchants: orderStatistics.activeMerchants
+    };
+  });
+  if (result) overview.value = result;
+};
+const loadPage = async (label: string) => {
+  active.value = label;
+  if (label === '总览') { await loadOverview(); return; }
+  if (label === '订单与支付') { await loadOrders(); return; }
+  if (label === '商户产品') { await loadMerchantProducts(); return; }
+  if (label === '用户管理') { await loadUsers(); return; }
+  const resource = resourceMap[label];
+  if (!resource) return;
+  listLoading.value = true;
+  try { records.value = await getAdminList(resource); } catch (error) { notice.value = error instanceof Error ? error.message : '列表加载失败'; } finally { listLoading.value = false; }
+};
+const loadUsers = async () => {
+  listLoading.value = true;
+  try { users.value = await getUsers(); } catch (error) { notice.value = error instanceof Error ? error.message : '用户加载失败'; } finally { listLoading.value = false; }
+};
+const createNewUser = async () => {
+  const result = await run(() => createUser({ ...userForm.value, roles: userForm.value.roles.split(',').map(role => role.trim()).filter(Boolean) }), '用户创建成功');
+  if (result) { users.value = [result, ...users.value]; userForm.value = { username: '', password: '', displayName: '', roles: 'OPS' }; }
+};
+const loadMerchantProducts = async () => {
+  listLoading.value = true;
+  try { merchantProducts.value = await getMerchantProducts(); } catch (error) { notice.value = error instanceof Error ? error.message : '商户产品加载失败'; } finally { listLoading.value = false; }
+};
+const bindProduct = async () => {
+  const result = await run(() => bindMerchantProduct(bindingForm.value), '商户产品绑定成功');
+  if (result) merchantProducts.value = [result, ...merchantProducts.value];
+};
+const loadOrders = async (page = 1) => {
+  listLoading.value = true;
+  try { const result = await getOrderPage({ ...orderFilters.value, page, pageSize: orderPage.value.pageSize }); orderPage.value = result; } catch (error) { notice.value = error instanceof Error ? error.message : '订单列表加载失败'; } finally { listLoading.value = false; }
+};
+const findOrder = async () => { if (queryId.value.trim()) selectedOrder.value = await run(() => getOrder(queryId.value.trim())); };
+const createNewOrder = async () => {
+  const key = crypto.randomUUID();
+  const result = await run(() => createOrder(orderForm.value, key), '订单创建成功');
+  if (result) { selectedOrder.value = result; queryId.value = result.orderId; }
+};
+const refreshOrderStatus = async () => {
+  if (!selectedOrder.value) return;
+  const result = await run(() => getOrder(selectedOrder.value!.orderId), '订单状态已刷新');
+  if (result) selectedOrder.value = result;
+};
+const mutateOrder = async (kind: 'cancel' | 'success' | 'failed') => {
+  if (!selectedOrder.value) return;
+  const action = kind === 'cancel' ? cancelOrder(selectedOrder.value.orderId) : callbackOrder(selectedOrder.value.orderId, kind.toUpperCase());
+  const result = await run(() => action, '订单状态已更新');
+  if (result) selectedOrder.value = result;
+};
+const loadSnapshot = async () => { const result = await run(() => getSnapshot(snapshotForm.value)); if (result) snapshot.value = result; };
+const checkHealth = async () => { const result = await run(() => getChannelHealth('simulated-channel')); if (result) channelHealth.value = result.status; };
+const refresh = async () => { await loadOverview(); await checkHealth(); };
+onMounted(async () => { try { await getOrderHealth(); } catch { serviceOnline.value = false; } await refresh(); });
 </script>
-<template><div class="app-shell"><aside><div class="brand"><span class="brand-mark">P</span><div><strong>PAYMENT OPS</strong><small>收单运营中心</small></div></div><div class="workspace"><span class="eyebrow">WORKSPACE</span><button>Global Production <ChevronDown :size="15" /></button></div><nav><button v-for="item in menu" :key="item.label" :class="{selected: active === item.label}" @click="active = item.label"><component :is="item.icon" :size="18" /><span>{{ item.label }}</span></button></nav><div class="side-foot"><button><Settings2 :size="17" /> 系统设置</button><div class="operator"><span>JP</span><div><b>JasonPez</b><small>超级管理员</small></div><ChevronDown :size="15" /></div></div></aside><main><header><div><span class="eyebrow">THURSDAY · 20 AUG 2026</span><h1>{{ active }}</h1></div><div class="header-actions"><span class="live"><i></i> 系统运行正常</span><button class="icon-btn"><Bell :size="18" /></button><div class="avatar">JP</div></div></header><section class="hero-row"><div><p class="eyebrow">实时业务概览 / 过去 24 小时</p><h2>交易脉搏，清晰可见。</h2><p class="subline">所有关键决策都已记录，所有资金流向都可追溯。</p></div><button class="outline-btn"><ListFilter :size="16" /> 筛选时间 <ChevronDown :size="15" /></button></section><section class="metrics"><article><div class="metric-top"><span>支付成功率</span><Activity :size="18" /></div><strong>94.82<span>%</span></strong><small class="up">+2.41% <em>较昨日</em></small><div class="sparkline"><i v-for="n in [45,56,42,68,59,74,66,82,77,91]" :key="n" :style="{height: n + '%'}"></i></div></article><article><div class="metric-top"><span>交易总额</span><ArrowUpRight :size="18" /></div><strong>¥ 2.84<span>M</span></strong><small class="up">+18.6% <em>较昨日</em></small><div class="metric-note">本日累计 1,284 笔交易</div></article><article><div class="metric-top"><span>待处理事项</span><ShieldCheck :size="18" /></div><strong>27</strong><small class="warn">需要关注 <em>较昨日 +4</em></small><div class="metric-note">风控审核 18 · 对账差异 9</div></article><article class="dark-card"><div class="metric-top"><span>活跃渠道</span><Network :size="18" /></div><strong>18<span>/ 21</span></strong><small class="up">85.7% <em>健康率</em></small><div class="channel-dots"><i v-for="n in 21" :key="n" :class="{off: n > 18}"></i></div></article></section><section class="content-grid"><div class="panel"><div class="panel-head"><div><span class="eyebrow">TRANSACTIONS</span><h3>最新交易</h3></div><button class="text-btn">查看全部 <ArrowUpRight :size="15" /></button></div><div class="table-head"><span>订单号 / 商户</span><span>支付方式</span><span>金额</span><span>状态</span><span>时间</span></div><div class="table-row" v-for="order in orders" :key="order.id"><div><b>{{ order.id }}</b><small>{{ order.merchant }}</small></div><span>{{ order.channel }}</span><strong>{{ order.amount }}</strong><span :class="['status', order.status === '已成功' ? 'success' : order.status === '待风控' ? 'warning' : 'pending']">{{ order.status }}</span><time>{{ order.time }}</time></div></div><div class="panel health"><div class="panel-head"><div><span class="eyebrow">CHANNEL HEALTH</span><h3>渠道健康度</h3></div><button class="icon-btn"><ArrowUpRight :size="17" /></button></div><div class="health-item"><span class="channel-logo blue">V</span><div><b>Visa Gateway</b><small>延迟 182 ms</small></div><strong>99.8%</strong></div><div class="health-item"><span class="channel-logo red">U</span><div><b>UnionPay Direct</b><small>延迟 243 ms</small></div><strong>98.4%</strong></div><div class="health-item"><span class="channel-logo green">A</span><div><b>AsiaPay Local</b><small>延迟 391 ms</small></div><strong>96.1%</strong></div></div></section></main></div></template>
+
+<template>
+  <div class="app-shell">
+    <aside>
+      <div class="brand"><span class="brand-mark">P</span><div><strong>PAYMENT OS</strong><small>ACQUIRING CONTROL</small></div></div>
+      <div class="workspace"><span class="eyebrow">WORKSPACE</span><strong>运营控制台</strong><small>Production / Asia Pacific</small></div>
+      <nav><button v-for="item in menu" :key="item.label" :class="{ active: active === item.label }" @click="loadPage(item.label)"><component :is="item.icon" :size="17" />{{ item.label }}</button></nav>
+      <button class="operator" title="退出登录" @click="signOut"><span class="avatar">{{ authState.user?.displayName.slice(0, 1) }}</span><div><strong>{{ authState.user?.displayName }}</strong><small>{{ authState.user?.roles.join(' · ') }}</small></div></button>
+    </aside>
+    <main>
+      <header><div><span class="eyebrow">FRIDAY · 21 AUG 2026</span><h1>{{ active }}</h1></div><div class="header-actions"><span class="live"><i :class="{ offline: !serviceOnline }"></i>{{ serviceOnline ? '交易服务正常' : '交易服务不可用' }}</span><button class="icon-btn" title="刷新数据" @click="refresh"><RefreshCw :size="18" /></button><span class="avatar">JP</span></div></header>
+      <div v-if="notice" class="notice">{{ notice }}</div>
+      <template v-if="isOverview">
+        <section class="hero-row"><div><p class="eyebrow">实时业务概览 / 累计数据</p><h2>交易脉搏，清晰可见。</h2><p class="subline">所有关键决策都已记录，所有资金流向都可追溯。</p></div><button class="outline-btn" :disabled="busy" @click="refresh"><RefreshCw :class="{ spin: busy }" :size="16" /> 刷新数据</button></section>
+        <section class="metrics"><article><span>支付成功率</span><strong>{{ overview?.paymentSuccessRate ?? '--' }}<small>%</small></strong><em><Activity :size="15" />累计订单</em></article><article><span>订单名义金额</span><strong>{{ overview?.paymentVolume?.toLocaleString() ?? '--' }}</strong><em>全币种累计</em></article><article><span>交易商户</span><strong>{{ overview?.activeMerchants ?? '--' }}</strong><em>历史去重</em></article><article><span>待发布配置</span><strong>{{ overview?.pendingReleases ?? '--' }}</strong><em>需要关注</em></article></section>
+        <section class="content-grid"><article class="panel"><div class="panel-title"><div><span class="eyebrow">CHANNEL HEALTH</span><h3>渠道健康度</h3></div><button class="icon-btn" @click="checkHealth"><RefreshCw :size="16" /></button></div><div v-for="channel in overview?.channelHealth || []" :key="channel.channelId" class="health-row"><span class="status-dot" :class="channel.status.toLowerCase()"></span><div><strong>{{ channel.name }}</strong><small>{{ channel.channelId }}</small></div><b>{{ channel.successRate }}%</b><span class="health-status">{{ channel.status }}</span></div></article><article class="panel"><div class="panel-title"><div><span class="eyebrow">QUICK CHECK</span><h3>配置快照验证</h3></div></div><div class="form-grid"><input v-model="snapshotForm.merchantId" placeholder="商户 ID" /><input v-model="snapshotForm.productCode" placeholder="产品编码" /><input v-model="snapshotForm.paymentMethod" placeholder="支付方式" /><input v-model="snapshotForm.currency" placeholder="币种" /></div><button class="primary-btn" :disabled="busy" @click="loadSnapshot">{{ busy ? '查询中…' : '查询已发布快照' }}</button><pre v-if="snapshot">{{ JSON.stringify(snapshot, null, 2) }}</pre></article></section>
+      </template>
+      <section v-else-if="active === '订单与支付'" class="panel workspace-panel"><div class="panel-title"><div><span class="eyebrow">TRADE OPERATIONS</span><h3>订单查询与处置</h3></div><button class="outline-btn" @click="loadOrders(orderPage.page)"><RefreshCw :size="16" />刷新订单</button></div><div class="order-filters"><input v-model="orderFilters.merchantId" placeholder="商户 ID" /><select v-model="orderFilters.status"><option value="">全部状态</option><option value="CREATED">CREATED</option><option value="SUCCESS">SUCCESS</option><option value="FAILED">FAILED</option><option value="CANCELED">CANCELED</option></select><input v-model="orderFilters.currency" placeholder="币种" /><button class="primary-btn" @click="loadOrders(1)"><Search :size="16" />筛选</button></div><div v-if="!listLoading && orderPage.items.length" class="record-list order-list"><button v-for="order in orderPage.items" :key="order.orderId" class="record-row" @click="selectedOrder = order; queryId = order.orderId"><div><strong>{{ order.merchantOrderNo }}</strong><small>{{ order.orderId }} · {{ order.merchantId }}</small></div><b>{{ order.amount }} {{ order.currency }} · {{ order.status }}</b></button></div><div v-else-if="listLoading" class="empty"><LoaderCircle class="spin" :size="22" />加载中…</div><div v-else class="empty">暂无订单数据</div><div v-if="orderPage.total" class="pagination"><button class="outline-btn" :disabled="orderPage.page <= 1" @click="loadOrders(orderPage.page - 1)">上一页</button><span>第 {{ orderPage.page }} 页 / 共 {{ Math.ceil(orderPage.total / orderPage.pageSize) }} 页（{{ orderPage.total }} 条）</span><button class="outline-btn" :disabled="orderPage.page >= Math.ceil(orderPage.total / orderPage.pageSize)" @click="loadOrders(orderPage.page + 1)">下一页</button></div><div class="order-create"><span class="eyebrow">CREATE PAYMENT ORDER</span><div class="form-grid"><input v-model="orderForm.merchantId" placeholder="商户 ID" /><input v-model="orderForm.merchantOrderNo" placeholder="商户订单号" /><input v-model="orderForm.productCode" placeholder="产品编码" /><input v-model="orderForm.paymentMethod" placeholder="支付方式" /><input v-model="orderForm.country" placeholder="国家" /><input v-model="orderForm.currency" placeholder="币种" /><input v-model.number="orderForm.amount" type="number" min="0.01" step="0.01" placeholder="金额" /></div><button class="primary-btn" :disabled="busy" @click="createNewOrder">创建真实订单</button></div><div class="search-row"><input v-model="queryId" placeholder="输入订单 ID" @keyup.enter="findOrder" /><button class="primary-btn" @click="findOrder"><Search :size="16" />查询订单</button></div><div v-if="selectedOrder" class="order-card"><div><span class="eyebrow">{{ selectedOrder.orderId }}</span><h3>{{ selectedOrder.merchantOrderNo }}</h3><p>{{ selectedOrder.amount }} {{ selectedOrder.currency }} · {{ selectedOrder.status }}</p><small>创建时间：{{ selectedOrder.createdAt || '--' }} · 过期时间：{{ selectedOrder.expireAt || '--' }}</small></div><div class="button-row"><button class="outline-btn" @click="refreshOrderStatus"><RefreshCw :size="16" />刷新状态</button><button class="danger-btn" @click="mutateOrder('cancel')" :disabled="['SUCCESS', 'FAILED', 'CANCELED'].includes(selectedOrder.status)"><XCircle :size="16" />取消订单</button><button class="primary-btn" @click="mutateOrder('success')">回调成功</button><button class="outline-btn" @click="mutateOrder('failed')">回调失败</button></div></div><p v-else class="empty">可创建订单，或输入真实订单 ID 后查询详情。</p></section>
+      <section v-else-if="active === '用户管理'" class="panel workspace-panel"><div class="panel-title"><div><span class="eyebrow">SYSTEM USERS</span><h3>用户管理</h3></div><button class="outline-btn" @click="loadUsers"><RefreshCw :size="16" />刷新</button></div><div class="form-grid binding-form"><input v-model="userForm.username" placeholder="用户名" /><input v-model="userForm.displayName" placeholder="显示名" /><input v-model="userForm.password" type="password" placeholder="初始密码（至少 12 位）" /><input v-model="userForm.roles" placeholder="角色编码，逗号分隔" /><button class="primary-btn" @click="createNewUser">创建用户</button></div><div v-if="listLoading" class="empty"><LoaderCircle class="spin" :size="22" />加载中…</div><div v-else-if="!users.length" class="empty">暂无用户</div><div v-else class="record-list"><div v-for="user in users" :key="user.id" class="record-row"><div><strong>{{ user.displayName }} · {{ user.username }}</strong><small>{{ user.roles.join(' · ') }}</small></div><b>{{ user.status }}</b></div></div></section><section v-else-if="active === '商户产品'" class="panel workspace-panel"><div class="panel-title"><div><span class="eyebrow">MERCHANT PRODUCT</span><h3>商户产品绑定</h3></div><button class="outline-btn" @click="loadMerchantProducts"><RefreshCw :size="16" />刷新</button></div><div class="form-grid binding-form"><input v-model="bindingForm.merchantId" placeholder="商户 ID" /><input v-model="bindingForm.productCode" placeholder="产品编码" /><button class="primary-btn" @click="bindProduct">绑定产品</button></div><div v-if="listLoading" class="empty"><LoaderCircle class="spin" :size="22" />加载中…</div><div v-else-if="!merchantProducts.length" class="empty">暂无商户产品绑定</div><div v-else class="record-list"><div v-for="item in merchantProducts" :key="item.bindingId" class="record-row"><div><strong>{{ item.merchantName }} · {{ item.productName }}</strong><small>{{ item.merchantId }} / {{ item.productCode }}</small></div><b>{{ item.status }}</b></div></div></section><section v-else class="panel workspace-panel"><div class="panel-title"><div><span class="eyebrow">{{ active.toUpperCase() }}</span><h3>{{ active }}列表</h3></div><button class="outline-btn" @click="loadPage(active)"><RefreshCw :size="16" />刷新</button></div><div v-if="listLoading" class="empty"><LoaderCircle class="spin" :size="22" />加载中…</div><div v-else-if="!records.length" class="empty">暂无数据</div><div v-else class="record-list"><div v-for="record in records" :key="String(record.merchantId || record.productCode || record.channelId || record.ruleId || record.policyId)" class="record-row"><div><strong>{{ record.name || record.productCode || record.channelId || record.ruleId || record.policyId }}</strong><small>{{ record.status || record.scope || record.currency }}</small></div><b>{{ record.health || record.feeRate || record.decision || record.weight || '' }}</b></div></div></section>
+    </main>
+  </div>
+</template>
