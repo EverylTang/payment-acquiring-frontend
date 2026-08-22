@@ -10,7 +10,9 @@
   --muted: #727c77;
   --muted-light: #98a09c;
   --paper: #fbfcfa;
+  --surface: #ffffff;
   --canvas: #eef1ed;
+  --accent-soft: #f1f8d9;
   --line: #d8ddd8;
   --line-dark: #c9cfca;
   --accent: #b9e936;
@@ -195,6 +197,16 @@ header h1 { margin: 6px 0 0; font-family: 'IBM Plex Sans SC', 'Noto Sans SC', sa
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .form-grid + .primary-btn { margin-top: 12px; }
 .binding-form { grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto; margin-bottom: 18px; }
+.split-panel { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; }
+.role-list { display: grid; align-content: start; gap: 8px; }
+.role-list button { display: flex; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); text-align: left; }
+.role-list button.active { border-color: var(--accent); background: var(--accent-soft); }
+.role-list small { color: var(--muted-light); font: 10px 'DM Mono', monospace; }
+.check-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 12px 0 24px; }
+.check-grid label { display: flex; gap: 8px; align-items: flex-start; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
+.check-grid small { display: block; color: var(--muted-light); font: 10px 'DM Mono', monospace; }
+.status-badge { flex: 0 0 auto; padding: 4px 8px; border-radius: 999px; background: var(--accent-soft); font-size: 12px; }
+.detail-panel { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 18px; }
 .binding-form .primary-btn { min-height: 42px; }
 
 .workspace-panel { max-width: 1440px; margin: 34px auto 0; padding: 26px; }
@@ -252,6 +264,8 @@ button.record-row:hover { padding-left: 20px; background: #f3f6f1; }
   .header-actions .live { display: none; }
   .hero-row { padding-top: 34px; }
   .content-grid { grid-template-columns: 1fr; }
+  .split-panel { grid-template-columns: 1fr; }
+  .check-grid { grid-template-columns: 1fr; }
   .order-filters { grid-template-columns: 1fr 1fr; }
 }
 
