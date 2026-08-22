@@ -8,7 +8,7 @@ import {
   updateRolePermissions,
   type AdminRole,
   type PermissionCatalog,
-} from "../../api";
+} from "./api";
 import { hasPermission } from "../../auth";
 const emit = defineEmits<{ notice: [message: string] }>();
 const roles = ref<AdminRole[]>([]);

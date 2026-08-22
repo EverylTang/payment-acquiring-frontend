@@ -16,7 +16,7 @@ import {
   type MerchantContact,
   type MerchantCredential,
   type MerchantProfile,
-} from "../../api";
+} from "./api";
 
 const props = defineProps<{ merchant: Merchant }>();
 const emit = defineEmits<{ back: []; notice: [message: string] }>();

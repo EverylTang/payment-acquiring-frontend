@@ -1,0 +1,25 @@
+export {
+  changeMerchantStatus,
+  createMerchant,
+  getMerchant,
+  getMerchantCallback,
+  getMerchantContacts,
+  getMerchantCredentials,
+  getMerchantProfile,
+  getMerchants,
+  revokeMerchantCredential,
+  rotateMerchantCredential,
+  updateMerchant,
+  updateMerchantCallback,
+  updateMerchantProfile,
+  createMerchantContact,
+} from "../../api";
+export type {
+  Merchant,
+  MerchantCallback,
+  MerchantContact,
+  MerchantCredential,
+  MerchantProfile,
+  PageResponse,
+  RotatedCredential,
+} from "../../api";
