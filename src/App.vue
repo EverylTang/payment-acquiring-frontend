@@ -71,12 +71,12 @@ import {
   type ProductCapability,
 } from "./api";
 import { authState, hasPermission, signOut } from "./auth";
-import MerchantDetailView from "./MerchantDetailView.vue";
-import UserManagementView from "./UserManagementView.vue";
-import ProductManagementView from "./ProductManagementView.vue";
-import PermissionManagementView from "./PermissionManagementView.vue";
-import RefundView from "./RefundView.vue";
-import OperationsView from "./OperationsView.vue";
+import MerchantDetailView from "./modules/merchant/MerchantDetailView.vue";
+import UserManagementView from "./modules/user/UserManagementView.vue";
+import ProductManagementView from "./modules/product/ProductManagementView.vue";
+import PermissionManagementView from "./modules/permission/PermissionManagementView.vue";
+import RefundView from "./modules/refund/RefundView.vue";
+import OperationsView from "./modules/operations/OperationsView.vue";
 
 const active = ref("总览");
 const busy = ref(false);

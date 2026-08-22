@@ -1,6 +1,6 @@
 import { createApp, h } from "vue";
 import App from "./App.vue";
-import LoginView from "./LoginView.vue";
+import LoginView from "./modules/auth/LoginView.vue";
 import { authState, restoreSession } from "./auth";
 import "./style.css";
 

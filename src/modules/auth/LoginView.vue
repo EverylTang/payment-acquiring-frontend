@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { ArrowRight, LoaderCircle, ShieldCheck } from "lucide-vue-next";
-import { signIn } from "./auth";
+import { signIn } from "../../auth";
 
 const username = ref("admin");
 const password = ref("");

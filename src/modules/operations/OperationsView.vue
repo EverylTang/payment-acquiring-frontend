@@ -8,7 +8,7 @@ import {
   resolveReconciliationDifference,
   type OutboxEvent,
   type ReconciliationDifference,
-} from "./api";
+} from "../../api";
 const emit = defineEmits<{ notice: [message: string] }>();
 const outbox = ref<OutboxEvent[]>([]);
 const differences = ref<ReconciliationDifference[]>([]);

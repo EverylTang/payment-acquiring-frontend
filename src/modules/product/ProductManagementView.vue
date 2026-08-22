@@ -9,8 +9,8 @@ import {
   updateProduct,
   type Product,
   type ProductCapability,
-} from "./api";
-import { hasPermission } from "./auth";
+} from "../../api";
+import { hasPermission } from "../../auth";
 const emit = defineEmits<{ notice: [message: string] }>();
 const products = ref<Product[]>([]);
 const capabilities = ref<ProductCapability[]>([]);

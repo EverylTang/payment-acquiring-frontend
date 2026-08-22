@@ -7,7 +7,7 @@ import {
   getUsers,
   type AdminRole,
   type AdminUser,
-} from "./api";
+} from "../../api";
 const users = ref<AdminUser[]>([]);
 const roles = ref<AdminRole[]>([]);
 const loading = ref(false);
