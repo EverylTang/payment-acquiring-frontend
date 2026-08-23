@@ -1,12 +1,2 @@
-export {
-  getPermissionCatalog,
-  getRolePermissions,
-  getRoles,
-  updateRolePermissions,
-} from "../../api";
-export type {
-  AdminRole,
-  PermissionCatalog,
-  RolePermissions,
-  PageResponse,
-} from "../../api";
+export { getRoles, getRolePermissions, updateRolePermissions, getPermissionCatalog } from "../../api";
+export type { AdminRole, RolePermissions, PermissionCatalog } from "../../api";

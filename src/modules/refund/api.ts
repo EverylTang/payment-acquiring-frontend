@@ -1,2 +1,2 @@
 export { createRefund, getRefund } from "../../api";
-export type { Order, Refund } from "../../api";
+export type { Refund } from "../../api";

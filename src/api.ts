@@ -42,6 +42,7 @@ export type OrderStatistics = {
 };
 
 const tokenKey = "payment-admin-token";
+/** @deprecated 兼容旧入口；新业务 API 请从各业务模块 api.ts 引入。 */
 export const getAccessToken = () => sessionStorage.getItem(tokenKey);
 export const setAccessToken = (token: string) =>
   sessionStorage.setItem(tokenKey, token);

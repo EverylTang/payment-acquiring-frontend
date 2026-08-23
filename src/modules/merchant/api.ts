@@ -1,25 +1,8 @@
 export {
-  changeMerchantStatus,
-  createMerchant,
-  getMerchant,
-  getMerchantCallback,
-  getMerchantContacts,
-  getMerchantCredentials,
-  getMerchantProfile,
-  getMerchants,
-  revokeMerchantCredential,
-  rotateMerchantCredential,
-  updateMerchant,
-  updateMerchantCallback,
-  updateMerchantProfile,
-  createMerchantContact,
+  getMerchants, getMerchant, createMerchant, updateMerchant, changeMerchantStatus,
+  getMerchantProfile, updateMerchantProfile, getMerchantContacts, createMerchantContact,
+  getMerchantCallback, updateMerchantCallback, getMerchantCredentials,
+  rotateMerchantCredential, revokeMerchantCredential, getMerchantProducts,
+  bindMerchantProduct, updateMerchantProduct,
 } from "../../api";
-export type {
-  Merchant,
-  MerchantCallback,
-  MerchantContact,
-  MerchantCredential,
-  MerchantProfile,
-  PageResponse,
-  RotatedCredential,
-} from "../../api";
+export type { Merchant, MerchantProfile, MerchantContact, MerchantCallback, MerchantCredential, MerchantProduct, PageResponse } from "../../api";

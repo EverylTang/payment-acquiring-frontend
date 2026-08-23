@@ -1,16 +1,2 @@
-export {
-  getAdminList,
-  getChannelHealth,
-  getOverview,
-  getOrderHealth,
-  getOrderPage,
-  getOrderStatistics,
-  getSnapshot,
-} from "../../api";
-export type {
-  AdminRecord,
-  DashboardOverview,
-  Order,
-  OrderPage,
-  OrderStatistics,
-} from "../../api";
+export { getOverview, getOrderStatistics, getChannelHealth, getOrderHealth } from "../../api";
+export type { DashboardOverview, OrderStatistics } from "../../api";
