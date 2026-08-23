@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { createRefund, getRefund, type Order, type Refund } from "./api";
+import { createRefund, getRefund, type Refund } from "./api";
+import type { Order } from "../order/api";
 const props = defineProps<{ order: Order }>();
 const emit = defineEmits<{ notice: [message: string] }>();
 const amount = ref(String(props.order.amount));

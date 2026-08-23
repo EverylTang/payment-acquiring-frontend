@@ -1,8 +1,27 @@
-export {
-  getMerchants, getMerchant, createMerchant, updateMerchant, changeMerchantStatus,
-  getMerchantProfile, updateMerchantProfile, getMerchantContacts, createMerchantContact,
-  getMerchantCallback, updateMerchantCallback, getMerchantCredentials,
-  rotateMerchantCredential, revokeMerchantCredential, getMerchantProducts,
-  bindMerchantProduct, updateMerchantProduct,
-} from "../../api";
-export type { Merchant, MerchantProfile, MerchantContact, MerchantCallback, MerchantCredential, MerchantProduct, PageResponse } from "../../api";
+import { request } from "../../api";
+export type PageResponse<T> = { items: T[]; page: number; pageSize: number; total: number };
+export type Merchant = { merchantId: string; name: string; status: string; settlementCurrency: string; createdAt: string; updatedAt: string };
+export type MerchantProfile = { merchantId: string; legalName: string; registeredCountry: string; industry?: string; riskLevel: string; taxIdentifier?: string; createdAt?: string; updatedAt?: string };
+export type MerchantContact = { id: number; merchantId: string; contactType: string; contactName: string; email?: string; phone?: string; notifyEnabled: boolean; createdAt?: string; updatedAt?: string };
+export type MerchantCallback = { merchantId: string; callbackUrl: string; eventTypes: string; status: string; createdAt?: string; updatedAt?: string };
+export type MerchantCredential = { credentialId: string; merchantId: string; credentialType: string; secretHint: string; status: string; createdAt?: string; rotatedAt?: string; revokedAt?: string };
+export type RotatedCredential = { credentialId: string; credentialType: string; secret: string; createdAt: string };
+export type MerchantProduct = { bindingId: string; merchantId: string; merchantName: string; productCode: string; productName: string; status: string; createdAt: string; updatedAt: string };
+const pageQuery = (params: { page?: number; pageSize?: number }) => new URLSearchParams({ page: String(params.page || 1), pageSize: String(params.pageSize || 20) });
+export const getMerchants = (params: { page?: number; pageSize?: number } = {}) => request<PageResponse<Merchant>>(`/admin/v1/merchants?${pageQuery(params)}`);
+export const getMerchant = (id: string) => request<Merchant>(`/admin/v1/merchants/${encodeURIComponent(id)}`);
+export const createMerchant = (payload: { merchantId: string; name: string; settlementCurrency: string }) => request<Merchant>("/admin/v1/merchants", { method: "POST", body: JSON.stringify(payload) });
+export const updateMerchant = (id: string, payload: { name: string; settlementCurrency: string }) => request<Merchant>(`/admin/v1/merchants/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) });
+export const changeMerchantStatus = (id: string, status: string) => request<Merchant>(`/admin/v1/merchants/${encodeURIComponent(id)}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
+export const getMerchantProfile = (id: string) => request<MerchantProfile>(`/admin/v1/merchants/${encodeURIComponent(id)}/profile`);
+export const updateMerchantProfile = (id: string, payload: Omit<MerchantProfile, "merchantId" | "createdAt" | "updatedAt">) => request<MerchantProfile>(`/admin/v1/merchants/${encodeURIComponent(id)}/profile`, { method: "PUT", body: JSON.stringify(payload) });
+export const getMerchantContacts = (id: string) => request<MerchantContact[]>(`/admin/v1/merchants/${encodeURIComponent(id)}/contacts`);
+export const createMerchantContact = (id: string, payload: Omit<MerchantContact, "id" | "merchantId" | "createdAt" | "updatedAt">) => request<MerchantContact>(`/admin/v1/merchants/${encodeURIComponent(id)}/contacts`, { method: "POST", body: JSON.stringify(payload) });
+export const getMerchantCallback = (id: string) => request<MerchantCallback>(`/admin/v1/merchants/${encodeURIComponent(id)}/callback-config`);
+export const updateMerchantCallback = (id: string, payload: { callbackUrl: string; eventTypesJson: string; status: string }) => request<MerchantCallback>(`/admin/v1/merchants/${encodeURIComponent(id)}/callback-config`, { method: "PUT", body: JSON.stringify(payload) });
+export const getMerchantCredentials = (id: string) => request<MerchantCredential[]>(`/admin/v1/merchants/${encodeURIComponent(id)}/credentials`);
+export const rotateMerchantCredential = (id: string, credentialType: "API" | "WEBHOOK") => request<RotatedCredential>(`/admin/v1/merchants/${encodeURIComponent(id)}/credentials/rotate`, { method: "POST", body: JSON.stringify({ credentialType }) });
+export const revokeMerchantCredential = (id: string, credentialId: string) => request<void>(`/admin/v1/merchants/${encodeURIComponent(id)}/credentials/${encodeURIComponent(credentialId)}/revoke`, { method: "POST" });
+export const getMerchantProducts = (params: { page?: number; pageSize?: number } = {}) => request<PageResponse<MerchantProduct>>(`/admin/v1/merchant-products?${pageQuery(params)}`);
+export const bindMerchantProduct = (payload: { merchantId: string; productCode: string }) => request<MerchantProduct>("/admin/v1/merchant-products", { method: "POST", body: JSON.stringify(payload) });
+export const updateMerchantProduct = (id: string, payload: { merchantId: string; productCode: string }) => request<MerchantProduct>(`/admin/v1/merchant-products/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) });

@@ -1,2 +1,13 @@
-export { createOrder, getOrder, getOrderStatus, getOrderHealth, cancelOrder, callbackOrder, getSnapshot, getOrderPage, getOrderStatistics } from "../../api";
-export type { Order, OrderPage, OrderStatistics, CreateOrderRequest } from "../../api";
+import { request } from "../../api";
+export type Order = { orderId: string; merchantId: string; merchantOrderNo: string; currency: string; amount: number; feeAmount?: number; netAmount?: number; status: string; expireAt?: string; createdAt?: string; paidAt?: string };
+export type OrderPage = { items: Order[]; page: number; pageSize: number; total: number };
+export type OrderStatistics = { totalOrders: number; successfulOrders: number; paymentSuccessRate: number; paymentVolume: number; activeMerchants: number };
+export type CreateOrderRequest = { merchantId: string; merchantOrderNo: string; productCode: string; paymentMethod: string; country: string; currency: string; amount: number };
+export const createOrder = (payload: CreateOrderRequest, idempotencyKey: string) => request<Order>("/v1/payments/orders", { method: "POST", headers: { "Idempotency-Key": idempotencyKey }, body: JSON.stringify(payload) });
+export const getOrder = (id: string) => request<Order>(`/v1/payments/orders/${encodeURIComponent(id)}`);
+export const getOrderStatus = (id: string) => request<{ orderId: string; status: string }>(`/v1/payments/orders/${encodeURIComponent(id)}/status`);
+export const getOrderHealth = () => request<{ service: string; status: string }>("/v1/payments/orders/health");
+export const cancelOrder = (id: string) => request<Order>(`/v1/payments/orders/${encodeURIComponent(id)}/cancel`, { method: "POST" });
+export const callbackOrder = (id: string, status: string) => request<Order>(`/v1/payments/orders/${encodeURIComponent(id)}/callback?status=${encodeURIComponent(status)}`, { method: "POST" });
+export const getOrderPage = (params: { merchantId?: string; status?: string; currency?: string; page?: number; pageSize?: number }) => request<OrderPage>(`/admin/v1/orders?${new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined && value !== "").map(([key, value]) => [key, String(value)]))}`);
+export const getOrderStatistics = () => request<OrderStatistics>("/admin/v1/orders/statistics");

@@ -16,60 +16,13 @@ import {
   WalletCards,
   XCircle,
 } from "lucide-vue-next";
-import {
-  bindMerchantProduct,
-  callbackOrder,
-  cancelOrder,
-  changeMerchantStatus,
-  changeProductStatus,
-  createMerchant,
-  createOrder,
-  createProduct,
-  createUser,
-  getAdminList,
-  getChannelHealth,
-  getMerchant,
-  getMerchantCallback,
-  getMerchantContacts,
-  getMerchantCredentials,
-  getMerchantProfile,
-  getMerchantProducts,
-  getMerchants,
-  getOrder,
-  getOrderHealth,
-  getOrderPage,
-  getOrderStatistics,
-  getOverview,
-  getPermissionCatalog,
-  getProductCapabilities,
-  getProducts,
-  getRolePermissions,
-  getRoles,
-  getSnapshot,
-  getUsers,
-  revokeMerchantCredential,
-  rotateMerchantCredential,
-  updateMerchant,
-  updateMerchantProduct,
-  updateProduct,
-  updateRolePermissions,
-  type AdminRecord,
-  type AdminRole,
-  type AdminUser,
-  type CreateOrderRequest,
-  type DashboardOverview,
-  type Merchant,
-  type MerchantCallback,
-  type MerchantContact,
-  type MerchantCredential,
-  type MerchantProduct,
-  type MerchantProfile,
-  type Order,
-  type OrderPage,
-  type PermissionCatalog,
-  type Product,
-  type ProductCapability,
-} from "./api";
+import { bindMerchantProduct, changeMerchantStatus, createMerchant, getMerchant, getMerchantCallback, getMerchantContacts, getMerchantCredentials, getMerchantProfile, getMerchantProducts, getMerchants, revokeMerchantCredential, rotateMerchantCredential, updateMerchant, updateMerchantProduct, type Merchant, type MerchantCallback, type MerchantContact, type MerchantCredential, type MerchantProduct, type MerchantProfile } from "./modules/merchant/api";
+import { changeProductStatus, createProduct, getProductCapabilities, getProducts, updateProduct, type Product, type ProductCapability } from "./modules/product/api";
+import { createUser, getRoles, getUsers, type AdminUser } from "./modules/user/api";
+import { getPermissionCatalog, getRolePermissions, updateRolePermissions, type AdminRole, type PermissionCatalog } from "./modules/permission/api";
+import { callbackOrder, cancelOrder, createOrder, getOrder, getOrderHealth, getOrderPage, getOrderStatistics, type CreateOrderRequest, type Order, type OrderPage } from "./modules/order/api";
+import { getChannelHealth, getOverview, getSnapshot, type DashboardOverview } from "./modules/dashboard/api";
+import { getAdminList, type AdminRecord } from "./modules/operations/api";
 import { authState, hasPermission, signOut } from "./auth";
 import MerchantDetailView from "./modules/merchant/MerchantDetailView.vue";
 import UserManagementView from "./modules/user/UserManagementView.vue";

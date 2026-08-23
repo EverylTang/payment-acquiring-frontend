@@ -1,14 +1,8 @@
 import { reactive } from "vue";
 import {
-  clearAccessToken,
-  getAccess,
-  getAccessToken,
-  getCurrentUser,
-  login,
-  setAccessToken,
-  type AccessResponse,
-  type CurrentUser,
+  clearAccessToken, getAccessToken, setAccessToken,
 } from "./api";
+import { getAccess, getCurrentUser, login, type AccessResponse, type CurrentUser } from "./modules/auth/api";
 
 export const authState = reactive<{
   user: CurrentUser | null;
