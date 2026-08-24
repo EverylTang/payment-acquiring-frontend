@@ -3,9 +3,11 @@ import { onMounted, ref } from "vue";
 import { RefreshCw } from "lucide-vue-next";
 import {
   getPermissionCatalog,
+  getRoleDataScope,
   getRolePermissions,
   getRoles,
   updateRolePermissions,
+  updateRoleDataScope,
   type AdminRole,
   type PermissionCatalog,
 } from "./api";
@@ -16,6 +18,7 @@ const catalog = ref<PermissionCatalog | null>(null);
 const selectedRole = ref("");
 const menus = ref<string[]>([]);
 const permissions = ref<string[]>([]);
+const scopeTypes = ref<string[]>([]);
 const load = async () => {
   try {
     const [rolePage, value] = await Promise.all([
@@ -32,9 +35,21 @@ const load = async () => {
 const select = async (role: string) => {
   if (!role) return;
   selectedRole.value = role;
-  const value = await getRolePermissions(role);
+  const [value, scope] = await Promise.all([
+    getRolePermissions(role),
+    getRoleDataScope(role),
+  ]);
   menus.value = value.menuCodes;
   permissions.value = value.permissionCodes;
+  scopeTypes.value = scope.scopeTypes;
+};
+const saveScope = async () => {
+  try {
+    await updateRoleDataScope(selectedRole.value, scopeTypes.value);
+    emit("notice", "角色数据范围已保存");
+  } catch (error) {
+    emit("notice", error instanceof Error ? error.message : "数据范围保存失败");
+  }
 };
 const save = async () => {
   try {
@@ -100,6 +115,16 @@ onMounted(load);
         >
           保存权限配置
         </button>
+        <div class="data-scope-panel">
+          <h4>数据范围</h4>
+          <p>决定该角色可读取的商户数据范围，最终仍由后端数据权限校验。</p>
+          <div class="check-grid data-scope-options">
+            <label><input v-model="scopeTypes" type="checkbox" value="ALL" />全部商户数据</label>
+            <label><input v-model="scopeTypes" type="checkbox" value="ASSIGNED" />已分配商户数据</label>
+            <label><input v-model="scopeTypes" type="checkbox" value="SELF" />本人负责商户数据</label>
+          </div>
+          <button v-if="hasPermission('system:role:update')" class="outline-btn" @click="saveScope">保存数据范围</button>
+        </div>
       </div>
     </div>
   </section>

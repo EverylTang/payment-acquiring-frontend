@@ -13,14 +13,16 @@ import {
   Settings2,
   ShieldCheck,
   Store,
+  Users,
+  UsersRound,
   WalletCards,
   XCircle,
 } from "lucide-vue-next";
-import { bindMerchantProduct, changeMerchantStatus, createMerchant, getMerchant, getMerchantCallback, getMerchantContacts, getMerchantCredentials, getMerchantProfile, getMerchantProducts, getMerchants, revokeMerchantCredential, rotateMerchantCredential, updateMerchant, updateMerchantProduct, type Merchant, type MerchantCallback, type MerchantContact, type MerchantCredential, type MerchantProduct, type MerchantProfile } from "./modules/merchant/api";
+import { bindMerchantProduct, changeMerchantProductStatus, changeMerchantStatus, createMerchant, getMerchant, getMerchantCallback, getMerchantContacts, getMerchantCredentials, getMerchantProfile, getMerchantProducts, getMerchants, revokeMerchantCredential, rotateMerchantCredential, updateMerchant, updateMerchantProduct, type Merchant, type MerchantCallback, type MerchantContact, type MerchantCredential, type MerchantProduct, type MerchantProfile } from "./modules/merchant/api";
 import { changeProductStatus, createProduct, getProductCapabilities, getProducts, updateProduct, type Product, type ProductCapability } from "./modules/product/api";
 import { createUser, getRoles, getUsers, type AdminUser } from "./modules/user/api";
 import { getPermissionCatalog, getRolePermissions, updateRolePermissions, type AdminRole, type PermissionCatalog } from "./modules/permission/api";
-import { callbackOrder, cancelOrder, createOrder, getOrder, getOrderHealth, getOrderPage, getOrderStatistics, type CreateOrderRequest, type Order, type OrderPage } from "./modules/order/api";
+import { callbackOrder, cancelOrder, cancelPaymentAttempt, createOrder, createPaymentAttempt, getOrder, getOrderHealth, getOrderPage, getOrderStatistics, queryPaymentAttempt, retryPaymentAttempt, type CreateOrderRequest, type Order, type OrderPage, type PaymentAttempt } from "./modules/order/api";
 import { getChannelHealth, getOverview, getSnapshot, type DashboardOverview } from "./modules/dashboard/api";
 import { getAdminList, type AdminRecord } from "./modules/operations/api";
 import { authState, hasPermission, signOut } from "./auth";
@@ -30,12 +32,15 @@ import ProductManagementView from "./modules/product/ProductManagementView.vue";
 import PermissionManagementView from "./modules/permission/PermissionManagementView.vue";
 import RefundView from "./modules/refund/RefundView.vue";
 import OperationsView from "./modules/operations/OperationsView.vue";
+import ConfigurationCenterView from "./modules/configuration/ConfigurationCenterView.vue";
+import MenuManagementView from "./modules/menu/MenuManagementView.vue";
 
 const active = ref("总览");
 const busy = ref(false);
 const notice = ref("");
 const queryId = ref("");
 const selectedOrder = ref<Order | null>(null);
+const selectedAttempt = ref<PaymentAttempt | null>(null);
 const orderForm = ref<CreateOrderRequest>({
   merchantId: "merchant-demo",
   merchantOrderNo: `web-${Date.now()}`,
@@ -114,23 +119,57 @@ const iconMap = {
   CircleDollarSign,
   ShieldCheck,
   Settings2,
+  Users,
+  UsersRound,
+};
+type NavigationItem = { label: string; page: string; icon: typeof Store };
+const pageByComponent: Record<string, string> = {
+  dashboard: "总览",
+  orders: "订单与支付",
+  trade: "订单与支付",
+  merchants: "商户管理",
+  merchant: "商户管理",
+  products: "产品管理",
+  product: "产品管理",
+  "merchant-products": "商户产品",
+  "merchant-product": "商户产品",
+  routing: "路由与渠道",
+  pricing: "费率与结算",
+  risk: "风控工作台",
+  users: "用户管理",
+  "system:user": "用户管理",
+  roles: "角色权限",
+  "system:role": "角色权限",
+  menus: "菜单管理",
+  "system:menu": "菜单管理",
 };
 const menu = computed(() => {
   const accessMenu = (authState.access?.menus || [])
     .filter((item) => item.menuType === "PAGE")
     .map((item) => ({
       label: item.menuName,
+      page: pageByComponent[item.componentKey || item.menuCode] || item.menuName,
       icon: iconMap[item.icon as keyof typeof iconMap] || Store,
     }));
-  return accessMenu.length ? accessMenu : fallbackMenu;
+  const isAdmin = authState.user?.roles.includes("ADMIN");
+  const visible = accessMenu.length ? accessMenu : fallbackMenu;
+  if (!isAdmin) return visible;
+  const pages = new Set(visible.map((item) => item.page));
+  return [...visible, ...fallbackMenu.filter((item) => !pages.has(item.page))];
 });
-const fallbackMenu = [
-  { label: "总览", icon: LayoutDashboard },
-  { label: "订单与支付", icon: WalletCards },
-  { label: "商户管理", icon: Store },
-  { label: "产品管理", icon: Layers3 },
-  { label: "商户产品", icon: Link },
-  { label: "运营处置", icon: ShieldCheck },
+const fallbackMenu: NavigationItem[] = [
+  { label: "总览", page: "总览", icon: LayoutDashboard },
+  { label: "订单与支付", page: "订单与支付", icon: WalletCards },
+  { label: "商户管理", page: "商户管理", icon: Store },
+  { label: "产品管理", page: "产品管理", icon: Layers3 },
+  { label: "商户产品", page: "商户产品", icon: Link },
+  { label: "路由与渠道", page: "路由与渠道", icon: Network },
+  { label: "费率与结算", page: "费率与结算", icon: CircleDollarSign },
+  { label: "风控工作台", page: "风控工作台", icon: ShieldCheck },
+  { label: "用户管理", page: "用户管理", icon: Users },
+  { label: "角色权限", page: "角色权限", icon: UsersRound },
+  { label: "菜单管理", page: "菜单管理", icon: Settings2 },
+  { label: "运营处置", page: "运营处置", icon: ShieldCheck },
 ];
 const resourceMap: Record<string, string> = {
   商户管理: "merchants",
@@ -198,6 +237,7 @@ const loadPage = async (label: string) => {
     await loadProducts();
     return;
   }
+  if (["路由与渠道", "费率与结算", "风控工作台"].includes(label)) return;
   const resource = resourceMap[label];
   if (!resource) return;
   listLoading.value = true;
@@ -432,11 +472,11 @@ const createNewUser = async () => {
     };
   }
 };
-const loadMerchantProducts = async () => {
+const loadMerchantProducts = async (page = merchantProductPage.value.page) => {
   listLoading.value = true;
   try {
     const result = await getMerchantProducts({
-      page: merchantProductPage.value.page,
+      page,
       pageSize: merchantProductPage.value.pageSize,
     });
     merchantProducts.value = result.items;
@@ -481,6 +521,21 @@ const editMerchantProduct = (item: MerchantProduct) => {
     productCode: item.productCode,
   };
 };
+const toggleMerchantProduct = async (item: MerchantProduct) => {
+  busy.value = true;
+  try {
+    await changeMerchantProductStatus(
+      item.bindingId,
+      item.status === "ACTIVE" ? "DISABLED" : "ACTIVE",
+    );
+    item.status = item.status === "ACTIVE" ? "DISABLED" : "ACTIVE";
+    notice.value = "商户产品状态已更新";
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "商户产品状态更新失败";
+  } finally {
+    busy.value = false;
+  }
+};
 const loadOrders = async (page = 1) => {
   listLoading.value = true;
   try {
@@ -497,8 +552,10 @@ const loadOrders = async (page = 1) => {
   }
 };
 const findOrder = async () => {
-  if (queryId.value.trim())
+  if (queryId.value.trim()) {
     selectedOrder.value = await run(() => getOrder(queryId.value.trim()));
+    selectedAttempt.value = null;
+  }
 };
 const createNewOrder = async () => {
   const key = crypto.randomUUID();
@@ -508,6 +565,7 @@ const createNewOrder = async () => {
   );
   if (result) {
     selectedOrder.value = result;
+    selectedAttempt.value = null;
     queryId.value = result.orderId;
   }
 };
@@ -527,6 +585,25 @@ const mutateOrder = async (kind: "cancel" | "success" | "failed") => {
       : callbackOrder(selectedOrder.value.orderId, kind.toUpperCase());
   const result = await run(() => action, "订单状态已更新");
   if (result) selectedOrder.value = result;
+};
+const createAttempt = async () => {
+  if (!selectedOrder.value) return;
+  const result = await run(
+    () => createPaymentAttempt(selectedOrder.value!.orderId),
+    "支付尝试已创建",
+  );
+  if (result) selectedAttempt.value = result;
+};
+const mutateAttempt = async (action: "query" | "cancel" | "retry") => {
+  if (!selectedOrder.value || !selectedAttempt.value) return;
+  const request =
+    action === "query"
+      ? queryPaymentAttempt(selectedOrder.value.orderId, selectedAttempt.value.attemptId)
+      : action === "cancel"
+        ? cancelPaymentAttempt(selectedOrder.value.orderId, selectedAttempt.value.attemptId)
+        : retryPaymentAttempt(selectedOrder.value.orderId, selectedAttempt.value.attemptId);
+  const result = await run(() => request, "支付尝试已更新");
+  if (result) selectedAttempt.value = result;
 };
 const loadSnapshot = async () => {
   const result = await run(() => getSnapshot(snapshotForm.value));
@@ -564,9 +641,9 @@ onMounted(async () => {
       <nav>
         <button
           v-for="item in menu"
-          :key="item.label"
-          :class="{ active: active === item.label }"
-          @click="loadPage(item.label)"
+          :key="item.page"
+          :class="{ active: active === item.page }"
+          @click="loadPage(item.page)"
         >
           <component :is="item.icon" :size="17" />{{ item.label }}
         </button>
@@ -738,6 +815,7 @@ onMounted(async () => {
             @click="
               selectedOrder = order;
               queryId = order.orderId;
+              selectedAttempt = null;
             "
           >
             <div>
@@ -840,6 +918,17 @@ onMounted(async () => {
             ><button class="outline-btn" @click="mutateOrder('failed')">
               回调失败
             </button>
+          </div>
+          <div class="attempt-panel">
+            <div>
+              <span class="eyebrow">PAYMENT ATTEMPT</span>
+              <strong>{{ selectedAttempt ? `第 ${selectedAttempt.attemptNo} 次 · ${selectedAttempt.status}` : "尚未创建支付尝试" }}</strong>
+              <small v-if="selectedAttempt">{{ selectedAttempt.channelId }} · {{ selectedAttempt.channelOrderId }}</small>
+            </div>
+            <div class="button-row">
+              <button class="outline-btn" @click="createAttempt">创建尝试</button>
+              <template v-if="selectedAttempt"><button class="outline-btn" @click="mutateAttempt('query')">查询渠道</button><button class="outline-btn" @click="mutateAttempt('retry')">重试</button><button class="danger-btn" @click="mutateAttempt('cancel')">取消尝试</button></template>
+            </div>
           </div>
           <RefundView
             v-if="selectedOrder.status === 'SUCCESS'"
@@ -967,6 +1056,7 @@ onMounted(async () => {
             </button>
           </div>
         </div>
+        <div v-if="merchantPage.total > merchantPage.pageSize" class="pagination"><button class="outline-btn" :disabled="merchantPage.page <= 1" @click="loadMerchants(merchantPage.page - 1)">上一页</button><span>第 {{ merchantPage.page }} / {{ Math.ceil(merchantPage.total / merchantPage.pageSize) }} 页，共 {{ merchantPage.total }} 个商户</span><button class="outline-btn" :disabled="merchantPage.page >= Math.ceil(merchantPage.total / merchantPage.pageSize)" @click="loadMerchants(merchantPage.page + 1)">下一页</button></div>
       </section>
       <ProductManagementView
         v-else-if="active === '产品管理'"
@@ -1104,7 +1194,7 @@ onMounted(async () => {
           <input v-model="bindingForm.merchantId" placeholder="商户 ID" /><input
             v-model="bindingForm.productCode"
             placeholder="产品编码"
-          /><button class="primary-btn" @click="bindProduct">绑定产品</button>
+          /><button class="primary-btn" @click="bindProduct">{{ editingMerchantProduct ? "保存绑定" : "绑定产品" }}</button>
         </div>
         <div v-if="listLoading" class="empty">
           <LoaderCircle class="spin" :size="22" />加载中…
@@ -1122,12 +1212,32 @@ onMounted(async () => {
               <strong>{{ item.merchantName }} · {{ item.productName }}</strong
               ><small>{{ item.merchantId }} / {{ item.productCode }}</small>
             </div>
-            <b>{{ item.status }}</b>
+            <b>{{ item.status }}</b><div class="button-row"><button v-if="hasPermission('merchant-product:update')" class="outline-btn" @click="editMerchantProduct(item)">编辑</button><button v-if="hasPermission('merchant-product:status')" class="outline-btn" @click="toggleMerchantProduct(item)">{{ item.status === "ACTIVE" ? "停用" : "启用" }}</button></div>
           </div>
         </div>
+        <div v-if="merchantProductPage.total > merchantProductPage.pageSize" class="pagination"><button class="outline-btn" :disabled="merchantProductPage.page <= 1" @click="loadMerchantProducts(merchantProductPage.page - 1)">上一页</button><span>第 {{ merchantProductPage.page }} / {{ Math.ceil(merchantProductPage.total / merchantProductPage.pageSize) }} 页，共 {{ merchantProductPage.total }} 条绑定</span><button class="outline-btn" :disabled="merchantProductPage.page >= Math.ceil(merchantProductPage.total / merchantProductPage.pageSize)" @click="loadMerchantProducts(merchantProductPage.page + 1)">下一页</button></div>
       </section>
       <OperationsView
         v-else-if="active === '运营处置'"
+        @notice="notice = $event"
+      />
+      <ConfigurationCenterView
+        v-else-if="active === '路由与渠道'"
+        section="routing"
+        @notice="notice = $event"
+      />
+      <ConfigurationCenterView
+        v-else-if="active === '费率与结算'"
+        section="pricing"
+        @notice="notice = $event"
+      />
+      <ConfigurationCenterView
+        v-else-if="active === '风控工作台'"
+        section="risk"
+        @notice="notice = $event"
+      />
+      <MenuManagementView
+        v-else-if="active === '菜单管理'"
         @notice="notice = $event"
       />
       <section v-else-if="active !== '商户详情'" class="panel workspace-panel">

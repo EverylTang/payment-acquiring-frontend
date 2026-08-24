@@ -4,6 +4,10 @@ export const getAccessToken = () => sessionStorage.getItem(tokenKey);
 export const setAccessToken = (token: string) =>
   sessionStorage.setItem(tokenKey, token);
 export const clearAccessToken = () => sessionStorage.removeItem(tokenKey);
+let unauthorizedHandler = clearAccessToken;
+export const setUnauthorizedHandler = (handler: () => void) => {
+  unauthorizedHandler = handler;
+};
 
 /** 统一 HTTP 请求入口；业务请求请放在对应模块的 api.ts。 */
 export const request = async <T>(
@@ -20,7 +24,7 @@ export const request = async <T>(
       ...(init?.headers || {}),
     },
   });
-  if (response.status === 401) clearAccessToken();
+  if (response.status === 401) unauthorizedHandler();
   if (!response.ok) {
     const raw = await response.text();
     let payload: { code?: string; message?: string } | undefined;
@@ -35,6 +39,13 @@ export const request = async <T>(
       );
     }
     throw new Error(raw || `请求失败 (${response.status})`);
+  }
+  if (
+    response.status === 204 ||
+    response.headers.get("content-length") === "0" ||
+    !response.headers.get("content-type")?.includes("application/json")
+  ) {
+    return undefined as T;
   }
   return response.json() as Promise<T>;
 };

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { createRefund, getRefund, type Refund } from "./api";
+import { createRefund, executeRefund, getRefund, type Refund } from "./api";
 import type { Order } from "../order/api";
 const props = defineProps<{ order: Order }>();
 const emit = defineEmits<{ notice: [message: string] }>();
@@ -30,6 +30,18 @@ const query = async () => {
     result.value = await getRefund(props.order.orderId, refundId.value);
   } catch (e) {
     emit("notice", e instanceof Error ? e.message : "退款查询失败");
+  }
+};
+const execute = async () => {
+  if (!result.value) return;
+  loading.value = true;
+  try {
+    result.value = await executeRefund(props.order.orderId, result.value.refundId);
+    emit("notice", "退款已执行");
+  } catch (error) {
+    emit("notice", error instanceof Error ? error.message : "退款执行失败");
+  } finally {
+    loading.value = false;
   }
 };
 </script>
@@ -67,7 +79,7 @@ const query = async () => {
     <div v-if="result" class="record-row">
       <strong>{{ result.refundId }}</strong
       ><span>{{ result.amount }} {{ result.currency }}</span
-      ><b>{{ result.status }}</b>
+      ><b>{{ result.status }}</b><button v-if="result.status === 'PENDING'" class="outline-btn" :disabled="loading" @click="execute">执行退款</button>
     </div>
   </section>
 </template>

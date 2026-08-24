@@ -1,6 +1,6 @@
 import { reactive } from "vue";
 import {
-  clearAccessToken, getAccessToken, setAccessToken,
+  clearAccessToken, getAccessToken, setAccessToken, setUnauthorizedHandler,
 } from "./api";
 import { getAccess, getCurrentUser, login, type AccessResponse, type CurrentUser } from "./modules/auth/api";
 
@@ -41,3 +41,5 @@ export const signOut = () => {
   authState.user = null;
   authState.access = null;
 };
+
+setUnauthorizedHandler(signOut);

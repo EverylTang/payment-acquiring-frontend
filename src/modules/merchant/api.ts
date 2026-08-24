@@ -17,6 +17,8 @@ export const getMerchantProfile = (id: string) => request<MerchantProfile>(`/adm
 export const updateMerchantProfile = (id: string, payload: Omit<MerchantProfile, "merchantId" | "createdAt" | "updatedAt">) => request<MerchantProfile>(`/admin/v1/merchants/${encodeURIComponent(id)}/profile`, { method: "PUT", body: JSON.stringify(payload) });
 export const getMerchantContacts = (id: string) => request<MerchantContact[]>(`/admin/v1/merchants/${encodeURIComponent(id)}/contacts`);
 export const createMerchantContact = (id: string, payload: Omit<MerchantContact, "id" | "merchantId" | "createdAt" | "updatedAt">) => request<MerchantContact>(`/admin/v1/merchants/${encodeURIComponent(id)}/contacts`, { method: "POST", body: JSON.stringify(payload) });
+export const updateMerchantContact = (merchantId: string, contactId: number, payload: Omit<MerchantContact, "id" | "merchantId" | "createdAt" | "updatedAt">) => request<MerchantContact>(`/admin/v1/merchants/${encodeURIComponent(merchantId)}/contacts/${contactId}`, { method: "PUT", body: JSON.stringify(payload) });
+export const deleteMerchantContact = (merchantId: string, contactId: number) => request<void>(`/admin/v1/merchants/${encodeURIComponent(merchantId)}/contacts/${contactId}`, { method: "DELETE" });
 export const getMerchantCallback = (id: string) => request<MerchantCallback>(`/admin/v1/merchants/${encodeURIComponent(id)}/callback-config`);
 export const updateMerchantCallback = (id: string, payload: { callbackUrl: string; eventTypesJson: string; status: string }) => request<MerchantCallback>(`/admin/v1/merchants/${encodeURIComponent(id)}/callback-config`, { method: "PUT", body: JSON.stringify(payload) });
 export const getMerchantCredentials = (id: string) => request<MerchantCredential[]>(`/admin/v1/merchants/${encodeURIComponent(id)}/credentials`);
@@ -25,3 +27,4 @@ export const revokeMerchantCredential = (id: string, credentialId: string) => re
 export const getMerchantProducts = (params: { page?: number; pageSize?: number } = {}) => request<PageResponse<MerchantProduct>>(`/admin/v1/merchant-products?${pageQuery(params)}`);
 export const bindMerchantProduct = (payload: { merchantId: string; productCode: string }) => request<MerchantProduct>("/admin/v1/merchant-products", { method: "POST", body: JSON.stringify(payload) });
 export const updateMerchantProduct = (id: string, payload: { merchantId: string; productCode: string }) => request<MerchantProduct>(`/admin/v1/merchant-products/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) });
+export const changeMerchantProductStatus = (id: string, status: string) => request<void>(`/admin/v1/merchant-products/${encodeURIComponent(id)}/status`, { method: "PATCH", body: JSON.stringify({ status }) });

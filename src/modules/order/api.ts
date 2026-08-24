@@ -9,5 +9,10 @@ export const getOrderStatus = (id: string) => request<{ orderId: string; status:
 export const getOrderHealth = () => request<{ service: string; status: string }>("/v1/payments/orders/health");
 export const cancelOrder = (id: string) => request<Order>(`/v1/payments/orders/${encodeURIComponent(id)}/cancel`, { method: "POST" });
 export const callbackOrder = (id: string, status: string) => request<Order>(`/v1/payments/orders/${encodeURIComponent(id)}/callback?status=${encodeURIComponent(status)}`, { method: "POST" });
+export type PaymentAttempt = { attemptId: string; orderId: string; channelId: string; channelOrderId: string; attemptNo: number; status: string; responseSnapshot?: string };
+export const createPaymentAttempt = (orderId: string) => request<PaymentAttempt>(`/v1/payments/orders/${encodeURIComponent(orderId)}/attempts`, { method: "POST" });
+export const queryPaymentAttempt = (orderId: string, attemptId: string) => request<PaymentAttempt>(`/v1/payments/orders/${encodeURIComponent(orderId)}/attempts/${encodeURIComponent(attemptId)}/query`, { method: "POST" });
+export const cancelPaymentAttempt = (orderId: string, attemptId: string) => request<PaymentAttempt>(`/v1/payments/orders/${encodeURIComponent(orderId)}/attempts/${encodeURIComponent(attemptId)}/cancel`, { method: "POST" });
+export const retryPaymentAttempt = (orderId: string, attemptId: string) => request<PaymentAttempt>(`/v1/payments/orders/${encodeURIComponent(orderId)}/attempts/${encodeURIComponent(attemptId)}/retry`, { method: "POST" });
 export const getOrderPage = (params: { merchantId?: string; status?: string; currency?: string; page?: number; pageSize?: number }) => request<OrderPage>(`/admin/v1/orders?${new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined && value !== "").map(([key, value]) => [key, String(value)]))}`);
 export const getOrderStatistics = () => request<OrderStatistics>("/admin/v1/orders/statistics");

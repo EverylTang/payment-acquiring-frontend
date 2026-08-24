@@ -7,3 +7,6 @@ export const getRoles = () => request<PageResponse<AdminRole>>("/admin/v1/roles?
 export const getRolePermissions = (roleCode: string) => request<RolePermissions>(`/admin/v1/roles/${encodeURIComponent(roleCode)}/permissions`);
 export const updateRolePermissions = (roleCode: string, payload: RolePermissions) => request<RolePermissions>(`/admin/v1/roles/${encodeURIComponent(roleCode)}/permissions`, { method: "PUT", body: JSON.stringify(payload) });
 export const getPermissionCatalog = () => request<PermissionCatalog>("/admin/v1/permission-catalog");
+export type RoleDataScope = { roleCode: string; scopeTypes: Array<"ALL" | "ASSIGNED" | "SELF"> };
+export const getRoleDataScope = (roleCode: string) => request<RoleDataScope>(`/admin/v1/data-scopes/roles/${encodeURIComponent(roleCode)}`);
+export const updateRoleDataScope = (roleCode: string, scopeTypes: string[]) => request<RoleDataScope>(`/admin/v1/data-scopes/roles/${encodeURIComponent(roleCode)}`, { method: "PUT", body: JSON.stringify({ scopeTypes }) });
