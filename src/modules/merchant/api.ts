@@ -27,8 +27,23 @@ export type MerchantContact = { id: number; merchantId: string; contactType: str
 export type MerchantCredential = { credentialId: string; merchantId: string; credentialType: string; secretHint: string; status: string; createdAt?: string; rotatedAt?: string; revokedAt?: string };
 export type RotatedCredential = { credentialId: string; credentialType: string; secret: string; createdAt: string };
 export type MerchantProduct = { bindingId: string; merchantId: string; merchantName: string; productCode: string; productName: string; status: string; createdAt: string; updatedAt: string; supportedPaymentMethods: string };
-const pageQuery = (params: { page?: number; pageSize?: number }) => new URLSearchParams({ page: String(params.page || 1), pageSize: String(params.pageSize || 20) });
-export const getMerchants = (params: { page?: number; pageSize?: number } = {}) => request<PageResponse<Merchant>>(`/admin/v1/merchants?${pageQuery(params)}`);
+type MerchantListParams = {
+  page?: number;
+  pageSize?: number;
+  merchantName?: string;
+  merchantId?: string;
+  status?: string;
+  createdFrom?: string;
+  createdTo?: string;
+};
+const pageQuery = (params: MerchantListParams) => {
+  const query = new URLSearchParams({ page: String(params.page || 1), pageSize: String(params.pageSize || 20) });
+  (["merchantName", "merchantId", "status", "createdFrom", "createdTo"] as const).forEach((key) => {
+    if (params[key]) query.set(key, params[key]);
+  });
+  return query;
+};
+export const getMerchants = (params: MerchantListParams = {}) => request<PageResponse<Merchant>>(`/admin/v1/merchants?${pageQuery(params)}`);
 export const getMerchant = (id: string) => request<Merchant>(`/admin/v1/merchants/${encodeURIComponent(id)}`);
 export const createMerchant = (payload: { name: string; merchantId?: string }) => request<Merchant>("/admin/v1/merchants", { method: "POST", body: JSON.stringify(payload) });
 export const updateMerchant = (id: string, payload: { name: string }) => request<Merchant>(`/admin/v1/merchants/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) });

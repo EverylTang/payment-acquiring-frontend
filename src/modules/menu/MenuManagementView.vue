@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { Pencil, Plus, RefreshCw, Save, ShieldCheck, ToggleLeft, Trash2 } from "lucide-vue-next";
+import { Pencil, Plus, Save, Search, ShieldCheck, ToggleLeft, Trash2 } from "lucide-vue-next";
+import { ElPagination } from "element-plus";
 import { changeMenuStatus, createMenu, createMenuPermission, createResourceType, deleteMenu, deleteMenuPermission, getMenuPermissions, getMenuResourceTypes, getMenus, getResourceTypes, updateMenu, updateMenuPermission, type AdminMenu, type MenuPermission, type ResourceType } from "./api";
 import AppDrawer from "../../components/AppDrawer.vue";
-import AppPagination from "../../components/AppPagination.vue";
 
 const emit = defineEmits<{ notice: [message: string] }>();
 const menus = ref<AdminMenu[]>([]);
 const loading = ref(false);
 const saving = ref(false);
 const page = ref({ current: 1, pageSize: 20, total: 0 });
+const filters = ref({ menuName: "", menuCode: "", menuType: "", status: "" });
 const menuDrawerOpen = ref(false);
 const editingMenu = ref<AdminMenu | null>(null);
 const permissionDrawerMenu = ref<AdminMenu | null>(null);
@@ -50,13 +51,19 @@ const menuPermissionTypeOptions = computed(() =>
 const load = async (current = page.value.current) => {
   loading.value = true;
   try {
-    const result = await getMenus({ page: current, pageSize: page.value.pageSize });
+    const result = await getMenus({ page: current, pageSize: page.value.pageSize, ...filters.value });
     menus.value = result.items;
     page.value = { current: result.page, pageSize: result.pageSize, total: result.total };
     resourceTypes.value = await getResourceTypes();
   } catch (error) { emit("notice", error instanceof Error ? error.message : "菜单加载失败"); }
   finally { loading.value = false; }
 };
+const search = () => load(1);
+const resetFilters = () => {
+  filters.value = { menuName: "", menuCode: "", menuType: "", status: "" };
+  load(1);
+};
+const changePageSize = (pageSize: number) => { page.value.pageSize = pageSize; load(1); };
 const openCreateMenu = () => { editingMenu.value = null; menuForm.value = emptyMenuForm(); menuDrawerOpen.value = true; };
 const openEditMenu = async (menu: AdminMenu) => {
   editingMenu.value = menu;
@@ -159,11 +166,20 @@ onMounted(load);
 </script>
 
 <template>
-  <section class="panel workspace-panel">
-    <div class="panel-title"><div><span class="eyebrow">SYSTEM MENU</span><h3>菜单管理</h3></div><div class="button-row"><button class="outline-btn" :disabled="loading" @click="load()"><RefreshCw :class="{ spin: loading }" :size="16" />刷新</button><button class="primary-btn" @click="openCreateMenu"><Plus :size="16" />新增菜单</button></div></div>
-    <div v-if="loading" class="empty">加载中…</div><div v-else-if="!menus.length" class="empty">暂无菜单</div>
-    <div v-else class="record-list"><div v-for="menu in menus" :key="menu.menuCode" class="record-row menu-record-row"><div><strong>{{ menu.menuName }}</strong><small>{{ menu.menuCode }} · {{ menu.menuType }} · {{ menu.routePath || "无路由" }} · 排序 {{ menu.sortOrder }}</small></div><span class="status-badge" :class="'st-' + menu.status.toLowerCase()">{{ menu.status }}</span><span class="status-badge" :class="menu.visible ? 'st-visible' : 'st-hidden'">{{ menu.visible ? "VISIBLE" : "HIDDEN" }}</span><div class="button-row"><button class="icon-btn" title="管理操作权限" @click="openPermissionDrawer(menu)"><ShieldCheck :size="16" /></button><button class="icon-btn" title="编辑菜单" @click="openEditMenu(menu)"><Pencil :size="16" /></button><button class="icon-btn" title="切换菜单状态" @click="toggle(menu)"><ToggleLeft :size="16" /></button><button class="icon-btn danger-icon-btn" title="删除菜单" @click="removeMenu(menu)"><Trash2 :size="16" /></button></div></div></div>
-    <AppPagination :page="page.current" :page-size="page.pageSize" :total="page.total" noun="个菜单" @change="load" />
+  <section class="panel workspace-panel management-list-page">
+    <form class="management-filter-form" @submit.prevent="search">
+      <div class="management-filter-fields">
+        <label class="management-form-item"><span>菜单名称</span><div class="management-input"><Search :size="16" /><input v-model="filters.menuName" placeholder="输入菜单名称" /></div></label>
+        <label class="management-form-item"><span>菜单编码</span><input v-model="filters.menuCode" placeholder="输入菜单编码" /></label>
+        <label class="management-form-item"><span>菜单类型</span><select v-model="filters.menuType"><option value="">全部类型</option><option value="PAGE">页面</option><option value="DIRECTORY">目录</option></select></label>
+        <label class="management-form-item"><span>状态</span><select v-model="filters.status"><option value="">全部状态</option><option value="ACTIVE">已启用</option><option value="DISABLED">已停用</option></select></label>
+      </div>
+      <div class="management-filter-actions"><button class="outline-btn" type="button" @click="resetFilters">重置</button><button class="primary-btn" type="submit"><Search :size="16" />查询</button><button class="primary-btn" type="button" @click="openCreateMenu"><Plus :size="16" />新增菜单</button></div>
+    </form>
+    <div class="management-list-summary"><span>菜单列表</span><small>共 {{ page.total }} 个菜单</small></div>
+    <div v-if="loading" class="empty">加载中…</div>
+    <div v-else class="table-wrap management-table-wrap"><table class="data-table menu-management-table"><colgroup><col class="menu-name-column" /><col class="menu-code-column" /><col class="menu-type-column" /><col class="menu-route-column" /><col class="menu-visible-column" /><col class="menu-status-column" /><col class="management-actions-column" /></colgroup><thead><tr><th>菜单名称</th><th>菜单编码</th><th>类型</th><th>路由</th><th>显示</th><th>状态</th><th class="actions">操作</th></tr></thead><tbody><tr v-for="menu in menus" :key="menu.menuCode"><td><strong>{{ menu.menuName }}</strong></td><td class="mono">{{ menu.menuCode }}</td><td>{{ menu.menuType === "PAGE" ? "页面" : "目录" }}</td><td>{{ menu.routePath || "--" }}</td><td><span class="status-badge" :class="menu.visible ? 'st-visible' : 'st-hidden'">{{ menu.visible ? "显示" : "隐藏" }}</span></td><td><span class="status-badge" :class="'st-' + menu.status.toLowerCase()">{{ menu.status === "ACTIVE" ? "已启用" : "已停用" }}</span></td><td class="actions"><div class="management-row-actions"><button class="outline-btn" title="管理操作权限" @click="openPermissionDrawer(menu)"><ShieldCheck :size="16" />权限</button><button class="outline-btn" title="编辑菜单" @click="openEditMenu(menu)"><Pencil :size="16" />编辑</button><button class="outline-btn" title="切换菜单状态" @click="toggle(menu)"><ToggleLeft :size="16" />{{ menu.status === "ACTIVE" ? "停用" : "启用" }}</button><button class="outline-btn danger-outline-btn" title="删除菜单" @click="removeMenu(menu)"><Trash2 :size="16" />删除</button></div></td></tr><tr v-if="!menus.length"><td colspan="7" class="empty">暂无符合条件的菜单</td></tr></tbody></table></div>
+    <div class="management-pagination"><ElPagination background layout="sizes, total, prev, pager, next" :current-page="page.current" :page-size="page.pageSize" :page-sizes="[20, 50, 100]" :total="page.total" :hide-on-single-page="false" @current-change="load" @size-change="changePageSize" /></div>
   </section>
   <AppDrawer v-if="menuDrawerOpen" :title="editingMenu ? '编辑菜单' : '新增菜单'" description="SYSTEM MENU" @close="closeMenuDrawer"><form class="drawer-section menu-drawer-form" @submit.prevent="saveMenu"><div class="drawer-form-grid"><label class="form-field"><span>菜单编码</span><input v-model="menuForm.menuCode" :disabled="!!editingMenu" placeholder="例如 system:report" /></label><label class="form-field"><span>菜单名称</span><input v-model="menuForm.menuName" placeholder="请输入菜单名称" /></label><label class="form-field"><span>菜单类型</span><select v-model="menuForm.menuType"><option value="PAGE">页面</option><option value="DIRECTORY">目录</option></select></label><label class="form-field"><span>父级菜单</span><select v-model="menuForm.parentMenuCode"><option value="">顶级菜单</option><option v-for="menu in parentMenus" :key="menu.menuCode" :value="menu.menuCode">{{ menu.menuName }} · {{ menu.menuCode }}</option></select></label><label class="form-field"><span>路由路径</span><input v-model="menuForm.routePath" placeholder="例如 /reports" /></label><label class="form-field"><span>组件标识</span><input v-model="menuForm.componentKey" placeholder="例如 reports" /></label><label class="form-field"><span>图标名称</span><input v-model="menuForm.icon" placeholder="例如 Settings2" /></label><label class="form-field"><span>排序</span><input v-model.number="menuForm.sortOrder" type="number" min="0" /></label></div><fieldset class="menu-resource-types"><legend>关联资源类型</legend><div class="resource-types-toolbar"><button class="outline-btn resource-type-create" type="button" @click="openResourceTypeDrawer"><Plus :size="14" />新增资源类型</button></div><div class="resource-type-grid"><label v-for="type in resourceTypes" :key="type.resourceType" class="resource-type-option" :class="{ selected: menuForm.resourceTypes.includes(type.resourceType) }"><input v-model="menuForm.resourceTypes" type="checkbox" :value="type.resourceType" /><span><b>{{ resourceTypeName(type) }}</b><small>{{ type.resourceType }}</small></span></label></div></fieldset><label class="drawer-check"><input v-model="menuForm.visible" type="checkbox" />在侧边栏显示</label><button class="primary-btn drawer-submit" type="submit" :disabled="saving || !menuForm.menuCode || !menuForm.menuName || !menuForm.resourceTypes.length"><Save :size="16" />{{ editingMenu ? "保存菜单" : "创建菜单" }}</button></form></AppDrawer>
   <AppDrawer v-if="resourceTypeDrawerOpen" title="新增资源类型" description="RESOURCE TYPE" @close="closeResourceTypeDrawer"><form class="drawer-section menu-drawer-form" @submit.prevent="saveResourceType"><div class="drawer-form-grid"><label class="form-field"><span>资源类型编码</span><input v-model="resourceTypeForm.resourceType" maxlength="64" placeholder="例如 REPORT" @input="resourceTypeForm.resourceType = resourceTypeForm.resourceType.toUpperCase()" /></label><label class="form-field"><span>资源类型名称</span><input v-model="resourceTypeForm.resourceName" maxlength="128" placeholder="例如 报表资源" /></label></div><button class="primary-btn drawer-submit" type="submit" :disabled="resourceTypeSaving || !resourceTypeForm.resourceType.trim() || !resourceTypeForm.resourceName.trim()"><Save :size="16" />创建资源类型</button></form></AppDrawer>

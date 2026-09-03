@@ -4,11 +4,12 @@ import {
   KeyRound,
   LoaderCircle,
   Plus,
-  RefreshCw,
   Save,
+  Search,
   ToggleLeft,
   UserRoundPen,
 } from "lucide-vue-next";
+import { ElPagination } from "element-plus";
 import {
   changeUserStatus,
   createUser,
@@ -29,6 +30,7 @@ const selected = ref<AdminUser | null>(null);
 const createDrawerOpen = ref(false);
 const editDrawerOpen = ref(false);
 const page = ref({ current: 1, pageSize: 20, total: 0 });
+const filters = ref({ username: "", displayName: "", status: "", roleCode: "" });
 const assignedMerchants = ref("");
 const resetPassword = ref("");
 const loading = ref(false);
@@ -68,7 +70,7 @@ const load = async (current = page.value.current) => {
   loading.value = true;
   try {
     const [userPage, rolePage] = await Promise.all([
-      getUsers({ page: current, pageSize: page.value.pageSize }),
+      getUsers({ page: current, pageSize: page.value.pageSize, ...filters.value }),
       getRoles(),
     ]);
     users.value = userPage.items;
@@ -84,6 +86,12 @@ const load = async (current = page.value.current) => {
     loading.value = false;
   }
 };
+const search = () => load(1);
+const resetFilters = () => {
+  filters.value = { username: "", displayName: "", status: "", roleCode: "" };
+  load(1);
+};
+const changePageSize = (pageSize: number) => { page.value.pageSize = pageSize; load(1); };
 const create = async () => {
   saving.value = true;
   try {
@@ -172,24 +180,20 @@ onMounted(load);
 </script>
 
 <template>
-  <section class="panel workspace-panel">
-    <div class="panel-title">
-      <div><span class="eyebrow">SYSTEM USERS</span><h3>用户管理</h3></div>
-      <div class="button-row">
-        <button class="outline-btn" @click="load()"><RefreshCw :size="16" />刷新</button>
-        <button class="primary-btn" @click="openCreateDrawer"><Plus :size="16" />新增用户</button>
+  <section class="panel workspace-panel management-list-page">
+    <form class="management-filter-form" @submit.prevent="search">
+      <div class="management-filter-fields">
+        <label class="management-form-item"><span>账号</span><div class="management-input"><Search :size="16" /><input v-model="filters.username" placeholder="输入用户名" /></div></label>
+        <label class="management-form-item"><span>显示名称</span><input v-model="filters.displayName" placeholder="输入显示名称" /></label>
+        <label class="management-form-item"><span>状态</span><select v-model="filters.status"><option value="">全部状态</option><option value="ACTIVE">已启用</option><option value="DISABLED">已停用</option></select></label>
+        <label class="management-form-item"><span>角色</span><select v-model="filters.roleCode"><option value="">全部角色</option><option v-for="role in roles" :key="role.roleCode" :value="role.roleCode">{{ role.roleName }}</option></select></label>
       </div>
-    </div>
+      <div class="management-filter-actions"><button class="outline-btn" type="button" @click="resetFilters">重置</button><button class="primary-btn" type="submit"><Search :size="16" />查询</button><button class="primary-btn" type="button" @click="openCreateDrawer"><Plus :size="16" />新增用户</button></div>
+    </form>
+    <div class="management-list-summary"><span>用户列表</span><small>共 {{ page.total }} 个用户</small></div>
     <div v-if="loading" class="empty"><LoaderCircle class="spin" :size="22" />加载中…</div>
-    <div v-else-if="!users.length" class="empty">暂无用户</div>
-    <div v-else class="record-list">
-      <div v-for="user in users" :key="user.id" class="record-row">
-        <div><strong>{{ user.displayName }} · {{ user.username }}</strong><small>{{ user.roles.join(" · ") }}</small></div>
-        <span class="status-badge" :class="'st-' + user.status.toLowerCase()">{{ user.status }}</span>
-        <div class="button-row"><button class="icon-btn" title="编辑用户" @click="select(user)"><UserRoundPen :size="16" /></button><button class="icon-btn" title="切换用户状态" @click="updateStatus(user)"><ToggleLeft :size="16" /></button></div>
-      </div>
-    </div>
-    <div v-if="page.total > page.pageSize" class="pagination"><button class="outline-btn" :disabled="page.current <= 1" @click="load(page.current - 1)">上一页</button><span>第 {{ page.current }} / {{ Math.ceil(page.total / page.pageSize) }} 页，共 {{ page.total }} 人</span><button class="outline-btn" :disabled="page.current >= Math.ceil(page.total / page.pageSize)" @click="load(page.current + 1)">下一页</button></div>
+    <div v-else class="table-wrap management-table-wrap"><table class="data-table user-management-table"><colgroup><col class="user-name-column" /><col class="user-account-column" /><col class="user-role-column" /><col class="user-status-column" /><col class="management-actions-column" /></colgroup><thead><tr><th>显示名称</th><th>账号</th><th>角色</th><th>状态</th><th class="actions">操作</th></tr></thead><tbody><tr v-for="user in users" :key="user.id"><td><strong>{{ user.displayName }}</strong></td><td class="mono">{{ user.username }}</td><td>{{ user.roles.join(" · ") || "--" }}</td><td><span class="status-badge" :class="'st-' + user.status.toLowerCase()">{{ user.status === "ACTIVE" ? "已启用" : "已停用" }}</span></td><td class="actions"><div class="management-row-actions"><button class="outline-btn" type="button" @click="select(user)"><UserRoundPen :size="16" />编辑</button><button class="outline-btn" type="button" @click="updateStatus(user)"><ToggleLeft :size="16" />{{ user.status === "ACTIVE" ? "停用" : "启用" }}</button></div></td></tr><tr v-if="!users.length"><td colspan="5" class="empty">暂无符合条件的用户</td></tr></tbody></table></div>
+    <div class="management-pagination"><ElPagination background layout="sizes, total, prev, pager, next" :current-page="page.current" :page-size="page.pageSize" :page-sizes="[20, 50, 100]" :total="page.total" :hide-on-single-page="false" @current-change="load" @size-change="changePageSize" /></div>
   </section>
   <AppDrawer v-if="createDrawerOpen" title="新增用户" description="SYSTEM USERS" @close="closeCreateDrawer">
     <form class="drawer-section user-form" @submit.prevent="create">

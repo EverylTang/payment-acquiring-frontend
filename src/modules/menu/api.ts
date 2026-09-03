@@ -21,10 +21,12 @@ export type MenuPermission = {
 };
 export type ResourceType = { resourceType: string; resourceName: string };
 
-export const getMenus = (params: { page?: number; pageSize?: number } = {}) =>
-  request<{ items: AdminMenu[]; page: number; pageSize: number; total: number }>(
-    `/admin/v1/menus?${new URLSearchParams({ page: String(params.page || 1), pageSize: String(params.pageSize || 20) })}`,
-  );
+type MenuListParams = { page?: number; pageSize?: number; menuName?: string; menuCode?: string; menuType?: string; status?: string };
+export const getMenus = (params: MenuListParams = {}) => {
+  const query = new URLSearchParams({ page: String(params.page || 1), pageSize: String(params.pageSize || 20) });
+  (["menuName", "menuCode", "menuType", "status"] as const).forEach((key) => { if (params[key]) query.set(key, params[key]); });
+  return request<{ items: AdminMenu[]; page: number; pageSize: number; total: number }>(`/admin/v1/menus?${query}`);
+};
 export const createMenu = (payload: Omit<AdminMenu, "id" | "parentId" | "status"> & { parentMenuCode?: string }) =>
   request<AdminMenu>("/admin/v1/menus", {
     method: "POST",

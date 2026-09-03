@@ -9,12 +9,13 @@ import {
   LoaderCircle,
   Pencil,
   Plus,
-  RefreshCw,
   Save,
+  Search,
   ShieldCheck,
   UserRound,
   UsersRound,
 } from "lucide-vue-next";
+import { ElPagination } from "element-plus";
 import {
   createRole,
   getPermissionCatalog,
@@ -29,7 +30,6 @@ import {
 } from "./api";
 import { hasPermission } from "../../auth";
 import AppDrawer from "../../components/AppDrawer.vue";
-import AppPagination from "../../components/AppPagination.vue";
 
 type Section = "access" | "scope";
 type PermissionTreeNode = PermissionCatalog["menus"][number] & {
@@ -43,6 +43,7 @@ type PermissionTreeRow =
 const emit = defineEmits<{ notice: [message: string] }>();
 const roles = ref<AdminRole[]>([]);
 const page = ref({ current: 1, pageSize: 20, total: 0 });
+const filters = ref({ roleName: "", roleCode: "" });
 const catalog = ref<PermissionCatalog | null>(null);
 const selectedRole = ref("");
 const activeSection = ref<Section>("access");
@@ -274,7 +275,7 @@ const load = async (current = page.value.current) => {
   loading.value = true;
   try {
     const [rolePage, value] = await Promise.all([
-      getRoles({ page: current, pageSize: page.value.pageSize }),
+      getRoles({ page: current, pageSize: page.value.pageSize, ...filters.value }),
       getPermissionCatalog().catch((error: unknown) => {
         catalogError.value = error instanceof Error ? error.message : "权限目录加载失败";
         return null;
@@ -301,6 +302,12 @@ const load = async (current = page.value.current) => {
     loading.value = false;
   }
 };
+const search = () => load(1);
+const resetFilters = () => {
+  filters.value = { roleName: "", roleCode: "" };
+  load(1);
+};
+const changePageSize = (pageSize: number) => { page.value.pageSize = pageSize; load(1); };
 
 const select = async (roleCode: string) => {
   if (!roleCode || (roleCode === selectedRole.value && selectionLoading.value)) return;
@@ -402,18 +409,19 @@ onMounted(load);
 </script>
 
 <template>
-  <section class="panel workspace-panel role-access-page">
-    <div class="panel-title">
-      <div><span class="eyebrow">ACCESS CONTROL</span><h3>角色列表</h3></div>
-      <div class="button-row">
-        <button class="outline-btn" :disabled="loading" @click="load()"><RefreshCw :class="{ spin: loading }" :size="16" />刷新</button>
-        <button v-if="hasPermission('system:role:update')" class="primary-btn" @click="openCreateDrawer"><Plus :size="16" />新增角色</button>
+  <section class="panel workspace-panel management-list-page role-access-page">
+    <form class="management-filter-form" @submit.prevent="search">
+      <div class="management-filter-fields management-filter-fields-compact">
+        <label class="management-form-item"><span>角色名称</span><div class="management-input"><Search :size="16" /><input v-model="filters.roleName" placeholder="输入角色名称" /></div></label>
+        <label class="management-form-item"><span>角色编码</span><input v-model="filters.roleCode" placeholder="输入角色编码" /></label>
       </div>
-    </div>
+      <div class="management-filter-actions"><button class="outline-btn" type="button" @click="resetFilters">重置</button><button class="primary-btn" type="submit"><Search :size="16" />查询</button><button v-if="hasPermission('system:role:update')" class="primary-btn" type="button" @click="openCreateDrawer"><Plus :size="16" />新增角色</button></div>
+    </form>
+    <div class="management-list-summary"><span>角色列表</span><small>共 {{ page.total }} 个角色</small></div>
 
     <div v-if="loading" class="empty"><LoaderCircle class="spin" :size="22" />加载中…</div>
-    <div v-else class="table-wrap"><table class="data-table role-table"><thead><tr><th>角色名称</th><th>角色编码</th><th class="actions">操作</th></tr></thead><tbody><tr v-for="role in roles" :key="role.roleCode"><td><strong>{{ role.roleName }}</strong></td><td><span class="mono">{{ role.roleCode }}</span></td><td class="actions"><div class="button-row"><button v-if="hasPermission('system:role:update')" class="outline-btn" type="button" @click="openAuthorization(role)"><ShieldCheck :size="16" />授权</button><button v-if="hasPermission('system:role:update')" class="icon-btn" type="button" title="编辑角色名称" @click="openEditRole(role)"><Pencil :size="15" /></button></div></td></tr><tr v-if="!roles.length"><td colspan="3" class="empty">暂无可配置角色</td></tr></tbody></table></div>
-    <AppPagination :page="page.current" :page-size="page.pageSize" :total="page.total" noun="个角色" @change="load" />
+    <div v-else class="table-wrap management-table-wrap"><table class="data-table role-table"><colgroup><col class="role-name-column" /><col class="role-code-column" /><col class="management-actions-column" /></colgroup><thead><tr><th>角色名称</th><th>角色编码</th><th class="actions">操作</th></tr></thead><tbody><tr v-for="role in roles" :key="role.roleCode"><td><strong>{{ role.roleName }}</strong></td><td><span class="mono">{{ role.roleCode }}</span></td><td class="actions"><div class="management-row-actions"><button v-if="hasPermission('system:role:update')" class="outline-btn" type="button" @click="openAuthorization(role)"><ShieldCheck :size="16" />授权</button><button v-if="hasPermission('system:role:update')" class="outline-btn" type="button" @click="openEditRole(role)"><Pencil :size="15" />编辑</button></div></td></tr><tr v-if="!roles.length"><td colspan="3" class="empty">暂无符合条件的角色</td></tr></tbody></table></div>
+    <div class="management-pagination"><ElPagination background layout="sizes, total, prev, pager, next" :current-page="page.current" :page-size="page.pageSize" :page-sizes="[20, 50, 100]" :total="page.total" :hide-on-single-page="false" @current-change="load" @size-change="changePageSize" /></div>
   </section>
   <AppDrawer v-if="authorizationDrawerOpen && selectedRoleDetail" title="角色授权" :description="`${selectedRoleDetail.roleName} · ${selectedRoleDetail.roleCode}`" @close="closeAuthorization">
     <section class="drawer-section role-authorization" aria-live="polite">

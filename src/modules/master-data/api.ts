@@ -4,7 +4,7 @@ export type Country = { code: string; name: string; region: string | null; statu
 export type Currency = { code: string; name: string; symbol: string | null; decimalPlaces: number; status: "ACTIVE" | "DISABLED" };
 export type CountryCurrency = { countryCode: string; countryName: string; currencyCode: string; currencyName: string; status: "ACTIVE" | "DISABLED" };
 export type Page<T> = { items: T[]; page: number; pageSize: number; total: number };
-const page = (params: { page?: number; pageSize?: number; status?: string; countryCode?: string } = {}) => new URLSearchParams({ page: String(params.page || 1), pageSize: String(params.pageSize || 10), ...(params.status ? { status: params.status } : {}), ...(params.countryCode ? { countryCode: params.countryCode } : {}) });
+const page = (params: { page?: number; pageSize?: number; status?: string; countryCode?: string } = {}) => new URLSearchParams({ page: String(params.page || 1), pageSize: String(params.pageSize || 20), ...(params.status ? { status: params.status } : {}), ...(params.countryCode ? { countryCode: params.countryCode } : {}) });
 export const getCountries = (params: { page?: number; pageSize?: number; status?: string } = {}) => request<Page<Country>>(`/admin/v1/master-data/countries?${page(params)}`);
 export const getCurrencies = (params: { page?: number; pageSize?: number; status?: string } = {}) => request<Page<Currency>>(`/admin/v1/master-data/currencies?${page(params)}`);
 export const getCountryCurrencies = (params: { page?: number; pageSize?: number; status?: string; countryCode?: string } = {}) => request<Page<CountryCurrency>>(`/admin/v1/master-data/country-currencies?${page(params)}`);

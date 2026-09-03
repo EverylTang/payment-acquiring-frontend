@@ -1555,3 +1555,37 @@ nav button.active::before { background: var(--accent); }
   .drawer-actions .primary-btn,
   .drawer-actions .outline-btn { flex: 1; }
 }
+
+/* Reusable management-list template. */
+.management-list-page { margin-top: 12px; padding-top: 16px; }
+.management-filter-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; margin-bottom: 18px; padding: 16px; border: 1px solid #ebeef5; border-radius: 4px; background: #f8fafc; }
+.management-filter-fields { display: grid; flex: 1 1 100%; grid-template-columns: repeat(4, minmax(145px, 1fr)); gap: 14px 16px; }
+.management-filter-fields-compact { grid-template-columns: repeat(2, minmax(145px, 220px)); }
+.management-form-item { display: grid; min-width: 0; gap: 7px; }
+.management-form-item > span { color: #606266; font-size: 13px; line-height: 20px; }
+.management-form-item input, .management-form-item select { width: 100%; min-width: 0; height: 32px; padding: 0 11px; border: 1px solid #dcdfe6; border-radius: 4px; color: #606266; background: #fff; font: inherit; font-size: 13px; outline: none; transition: border-color .15s, box-shadow .15s; }
+.management-form-item input:focus, .management-form-item select:focus, .management-input:focus-within { border-color: #409eff; box-shadow: 0 0 0 2px rgba(64, 158, 255, .16); }
+.management-input { display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px; border: 1px solid #dcdfe6; border-radius: 4px; color: #909399; background: #fff; transition: border-color .15s, box-shadow .15s; }
+.management-input input { height: 30px; padding: 0; border: 0; box-shadow: none; }
+.management-filter-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.management-list-summary { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; color: #303133; font-size: 14px; font-weight: 500; }
+.management-list-summary small { padding-left: 10px; border-left: 1px solid #dcdfe6; color: #909399; font-size: 13px; font-weight: 400; }
+.management-table-wrap { min-height: 270px; }
+.management-table-wrap .data-table { min-width: 900px; table-layout: fixed; }
+.management-table-wrap .data-table td:not(.actions) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.management-actions-column { width: 330px; }
+.management-row-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; white-space: nowrap; }
+.management-pagination { display: flex; justify-content: flex-end; padding-top: 16px; }
+.management-pagination .el-pagination { --el-pagination-button-bg-color: #fff; --el-pagination-button-color: #606266; --el-pagination-hover-color: #409eff; }
+.user-name-column { width: 20%; }.user-account-column { width: 19%; }.user-role-column { width: 24%; }.user-status-column { width: 12%; }
+.role-name-column { width: 38%; }.role-code-column { width: 38%; }
+.menu-name-column { width: 15%; }.menu-code-column { width: 18%; }.menu-type-column { width: 9%; }.menu-route-column { width: 14%; }.menu-visible-column { width: 8%; }.menu-status-column { width: 9%; }
+.country-name-column { width: 25%; }.country-code-column { width: 14%; }.country-region-column { width: 24%; }.country-status-column { width: 14%; }
+.product-name-column { width: 17%; }.product-type-column { width: 12%; }.product-market-column { width: 12%; }.product-method-column { width: 18%; }.product-capability-column { width: 8%; }.product-status-column { width: 10%; }
+.danger-outline-btn { border-color: #f56c6c; color: #f56c6c; }.danger-outline-btn:hover:not(:disabled) { border-color: #f56c6c; color: #fff; background: #f56c6c; }
+:root[data-theme="midnight"] .management-filter-form { border-color: var(--line); background: var(--surface); }
+:root[data-theme="midnight"] .management-list-summary { color: var(--ink); }
+:root[data-theme="midnight"] .management-list-summary small { border-color: var(--line); color: var(--muted); }
+:root[data-theme="midnight"] .management-input { border-color: var(--line); background: var(--paper); }
+@media (max-width: 1100px) { .management-filter-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }.management-filter-fields-compact { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .management-list-page { margin-top: 8px; padding-top: 12px; }.management-filter-form { padding: 12px; }.management-filter-fields, .management-filter-fields-compact { grid-template-columns: 1fr; }.management-filter-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }.management-filter-actions button { padding: 0 8px; }.management-pagination { justify-content: center; overflow-x: auto; } }

@@ -1,4 +1,5 @@
 import { createApp, h } from "vue";
+import "element-plus/dist/index.css";
 import App from "./App.vue";
 import LoginView from "./modules/auth/LoginView.vue";
 import { authState, restoreSession } from "./auth";
