@@ -25,7 +25,7 @@ import {
   WalletCards,
   XCircle,
 } from "lucide-vue-next";
-import { bindMerchantProduct, changeMerchantProductStatus, changeMerchantStatus, createMerchant, getMerchant, getMerchantCallback, getMerchantContacts, getMerchantCredentials, getMerchantProfile, getMerchantProducts, getMerchants, updateMerchant, updateMerchantProduct, type Merchant, type MerchantCallback, type MerchantContact, type MerchantCredential, type MerchantProduct, type MerchantProfile } from "./modules/merchant/api";
+import { bindMerchantProduct, changeMerchantProductStatus, getMerchantProducts, updateMerchantProduct, type Merchant, type MerchantProduct } from "./modules/merchant/api";
 import { getProducts, type Product } from "./modules/product/api";
 import { getRoles, getUsers, type AdminUser } from "./modules/user/api";
 import { getPermissionCatalog, getRolePermissions, type AdminRole, type PermissionCatalog } from "./modules/permission/api";
@@ -36,6 +36,7 @@ import { authState, hasPermission, signOut } from "./auth";
 import { changePassword } from "./modules/auth/api";
 import { preferences, setLocale, setTheme, type AppLocale, type AppTheme } from "./preferences";
 import MerchantDetailView from "./modules/merchant/MerchantDetailView.vue";
+import MerchantManagementView from "./modules/merchant/MerchantManagementView.vue";
 import UserManagementView from "./modules/user/UserManagementView.vue";
 import ProductManagementView from "./modules/product/ProductManagementView.vue";
 import PermissionManagementView from "./modules/permission/PermissionManagementView.vue";
@@ -69,21 +70,10 @@ const orderForm = ref<CreateOrderRequest>({
 });
 const overview = ref<DashboardOverview | null>(null);
 const records = ref<AdminRecord[]>([]);
-const merchants = ref<Merchant[]>([]);
-const merchantPage = ref({ page: 1, pageSize: 20, total: 0 });
 const selectedMerchant = ref<Merchant | null>(null);
-const merchantProfile = ref<MerchantProfile | null>(null);
-const merchantContacts = ref<MerchantContact[]>([]);
-const merchantCallback = ref<MerchantCallback | null>(null);
-const merchantCredentials = ref<MerchantCredential[]>([]);
+const selectedMerchantSection = ref<"profile" | "contacts" | "credentials">("profile");
 const products = ref<Product[]>([]);
 const productPage = ref({ page: 1, pageSize: 20, total: 0 });
-const editingMerchant = ref<Merchant | null>(null);
-const merchantForm = ref({
-  merchantId: "",
-  name: "",
-  settlementCurrency: "USD",
-});
 const permissionCatalog = ref<PermissionCatalog | null>(null);
 const selectedRole = ref("ADMIN");
 const selectedMenuCodes = ref<string[]>([]);
@@ -376,7 +366,6 @@ const loadPage = async (label: string) => {
     return;
   }
   if (label === "商户管理") {
-    await loadMerchants();
     return;
   }
   if (label === "产品管理") {
@@ -417,83 +406,13 @@ const selectRole = async (roleCode: string) => {
   selectedMenuCodes.value = permissions.menuCodes;
   selectedPermissionCodes.value = permissions.permissionCodes;
 };
-const loadMerchants = async (page = merchantPage.value.page) => {
-  listLoading.value = true;
-  try {
-    const result = await getMerchants({
-      page,
-      pageSize: merchantPage.value.pageSize,
-    });
-    merchants.value = result.items;
-    merchantPage.value = {
-      page: result.page,
-      pageSize: result.pageSize,
-      total: result.total,
-    };
-  } catch (error) {
-    notice.value = error instanceof Error ? error.message : "商户加载失败";
-  } finally {
-    listLoading.value = false;
-  }
-};
-const openMerchantDetail = async (merchant: Merchant) => {
+const openMerchantDetail = async (
+  merchant: Merchant,
+  section: "profile" | "contacts" | "credentials" = "profile",
+) => {
   selectedMerchant.value = merchant;
+  selectedMerchantSection.value = section;
   active.value = "商户详情";
-  listLoading.value = true;
-  try {
-    const [detail, profile, contacts, callback, credentials] =
-      await Promise.all([
-        getMerchant(merchant.merchantId),
-        getMerchantProfile(merchant.merchantId),
-        getMerchantContacts(merchant.merchantId),
-        getMerchantCallback(merchant.merchantId),
-        getMerchantCredentials(merchant.merchantId),
-      ]);
-    selectedMerchant.value = detail;
-    merchantProfile.value = profile;
-    merchantContacts.value = contacts;
-    merchantCallback.value = callback;
-    merchantCredentials.value = credentials;
-  } catch (error) {
-    notice.value = error instanceof Error ? error.message : "商户详情加载失败";
-  } finally {
-    listLoading.value = false;
-  }
-};
-const saveMerchant = async () => {
-  const result = editingMerchant.value
-    ? await run(
-        () =>
-          updateMerchant(editingMerchant.value!.merchantId, {
-            name: merchantForm.value.name,
-            settlementCurrency: merchantForm.value.settlementCurrency,
-          }),
-        "商户已更新",
-      )
-    : await run(() => createMerchant(merchantForm.value), "商户创建成功");
-  if (result) {
-    editingMerchant.value = null;
-    merchantForm.value = {
-      merchantId: "",
-      name: "",
-      settlementCurrency: "USD",
-    };
-    await loadMerchants();
-  }
-};
-const editMerchant = (merchant: Merchant) => {
-  openMerchantDetail(merchant);
-};
-const toggleMerchant = async (merchant: Merchant) => {
-  const result = await run(
-    () =>
-      changeMerchantStatus(
-        merchant.merchantId,
-        merchant.status === "ACTIVE" ? "DISABLED" : "ACTIVE",
-      ),
-    "商户状态已更新",
-  );
-  if (result) Object.assign(merchant, result);
 };
 const loadProducts = async (page = productPage.value.page) => {
   listLoading.value = true;
@@ -780,9 +699,9 @@ onMounted(async () => {
       <MerchantDetailView
         v-if="active === '商户详情' && selectedMerchant"
         :merchant="selectedMerchant"
+        :section="selectedMerchantSection"
         @back="
           active = '商户管理';
-          loadMerchants();
         "
         @notice="notice = $event"
       />
@@ -1082,69 +1001,11 @@ onMounted(async () => {
           </div>
         </div>
       </section> -->
-      <section v-else-if="active === '商户管理'" class="panel workspace-panel">
-        <div class="panel-title">
-          <div>
-            <span class="eyebrow">MERCHANTS</span>
-            <h3>商户管理</h3>
-          </div>
-          <button class="outline-btn" @click="loadMerchants()">刷新</button>
-        </div>
-        <div class="form-grid">
-          <input
-            v-model="merchantForm.merchantId"
-            :disabled="!!editingMerchant"
-            placeholder="商户 ID"
-          /><input v-model="merchantForm.name" placeholder="商户名称" /><input
-            v-model="merchantForm.settlementCurrency"
-            maxlength="3"
-            placeholder="结算币种"
-          /><button
-            v-if="
-              hasPermission(
-                editingMerchant ? 'merchant:update' : 'merchant:create',
-              )
-            "
-            class="primary-btn"
-            @click="saveMerchant"
-          >
-            {{ editingMerchant ? "保存编辑" : "新增商户" }}
-          </button>
-        </div>
-        <div v-if="listLoading" class="empty">加载中…</div>
-        <div v-else class="table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr><th>商户名称</th><th>商户 ID</th><th>结算币种</th><th>状态</th><th class="actions">操作</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="merchant in merchants" :key="merchant.merchantId">
-                <td><strong>{{ merchant.name }}</strong></td>
-                <td class="mono">{{ merchant.merchantId }}</td>
-                <td class="mono">{{ merchant.settlementCurrency }}</td>
-                <td><span class="status-badge" :class="'st-' + merchant.status.toLowerCase()">{{ merchant.status }}</span></td>
-                <td class="actions">
-                  <button
-                    v-if="hasPermission('merchant:update')"
-                    class="outline-btn"
-                    @click="editMerchant(merchant)"
-                  >
-                    编辑
-                  </button>
-                  <button
-                    v-if="hasPermission('merchant:status')"
-                    class="outline-btn"
-                    @click="toggleMerchant(merchant)"
-                  >
-                    {{ merchant.status === "ACTIVE" ? "停用" : "启用" }}
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div v-if="merchantPage.total > merchantPage.pageSize" class="pagination"><button class="outline-btn" :disabled="merchantPage.page <= 1" @click="loadMerchants(merchantPage.page - 1)">上一页</button><span>第 {{ merchantPage.page }} / {{ Math.ceil(merchantPage.total / merchantPage.pageSize) }} 页，共 {{ merchantPage.total }} 个商户</span><button class="outline-btn" :disabled="merchantPage.page >= Math.ceil(merchantPage.total / merchantPage.pageSize)" @click="loadMerchants(merchantPage.page + 1)">下一页</button></div>
-      </section>
+      <MerchantManagementView
+        v-else-if="active === '商户管理'"
+        @detail="openMerchantDetail"
+        @notice="notice = $event"
+      />
       <ProductManagementView
         v-else-if="active === '产品管理'"
         @notice="notice = $event"
@@ -1297,7 +1158,7 @@ onMounted(async () => {
           >
             <div>
               <strong>{{ item.merchantName }} · {{ item.productName }}</strong
-              ><small>{{ item.merchantId }} / {{ item.productCode }}</small>
+              ><small>{{ item.merchantId }} / {{ item.productCode }} · 结算币种 {{ item.supportedCurrencies || "未配置" }}</small>
             </div>
             <span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span><div class="button-row"><button v-if="hasPermission('merchant-product:update')" class="outline-btn" @click="editMerchantProduct(item)">编辑</button><button v-if="hasPermission('merchant-product:status')" class="outline-btn" @click="toggleMerchantProduct(item)">{{ item.status === "ACTIVE" ? "停用" : "启用" }}</button></div>
           </div>
