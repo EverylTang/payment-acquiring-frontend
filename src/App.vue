@@ -43,6 +43,8 @@ import RefundView from "./modules/refund/RefundView.vue";
 import OperationsView from "./modules/operations/OperationsView.vue";
 import ConfigurationCenterView from "./modules/configuration/ConfigurationCenterView.vue";
 import MenuManagementView from "./modules/menu/MenuManagementView.vue";
+import RoutingRuleManagementView from "./modules/routing/RoutingRuleManagementView.vue";
+import PricingRuleManagementView from "./modules/pricing/PricingRuleManagementView.vue";
 import AppDrawer from "./components/AppDrawer.vue";
 
 const active = ref("总览");
@@ -149,7 +151,9 @@ const pageByComponent: Record<string, string> = {
   "merchant-products": "商户产品",
   "merchant-product": "商户产品",
   routing: "路由与渠道",
+  "routing-rules": "路由规则管理",
   pricing: "费率与结算",
+  "pricing-rules": "费率规则管理",
   risk: "风控工作台",
   users: "用户管理",
   "system:user": "用户管理",
@@ -166,7 +170,9 @@ const englishMenuLabels: Record<string, string> = {
   product: "Products",
   "merchant-product": "Merchant products",
   routing: "Routing & channels",
+  "routing-rules": "Routing rules",
   pricing: "Pricing & settlement",
+  "pricing-rules": "Pricing rules",
   risk: "Risk workspace",
   system: "System",
   "system:user": "Users",
@@ -181,7 +187,9 @@ const englishPageLabels: Record<string, string> = {
   产品管理: "Products",
   商户产品: "Merchant products",
   路由与渠道: "Routing & channels",
+  路由规则管理: "Routing rules management",
   费率与结算: "Pricing & settlement",
+  费率规则管理: "Pricing rules management",
   风控工作台: "Risk workspace",
   用户管理: "Users",
   角色权限: "Roles & permissions",
@@ -1298,6 +1306,14 @@ onMounted(async () => {
       </section>
       <OperationsView
         v-else-if="active === '运营处置'"
+        @notice="notice = $event"
+      />
+      <RoutingRuleManagementView
+        v-else-if="active === '路由规则管理'"
+        @notice="notice = $event"
+      />
+      <PricingRuleManagementView
+        v-else-if="active === '费率规则管理'"
         @notice="notice = $event"
       />
       <ConfigurationCenterView
