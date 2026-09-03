@@ -1485,3 +1485,73 @@ nav button.active::before { background: var(--accent); }
   .nav-children { display: flex; align-items: center; gap: 2px; margin: 0; padding: 0; border: 0; }
   nav .nav-child { flex: 0 0 auto; min-height: 40px; padding: 10px 11px 12px; }
 }
+
+/* Unified Element-style management surfaces. Page titles are represented by navigation and breadcrumbs. */
+.workspace-panel,
+.configuration-center { border: 1px solid #e4e7ed; border-radius: 4px; background: #ffffff; box-shadow: none; }
+.workspace-panel > .panel-title,
+.configuration-center > .panel-title { min-height: 32px; margin-bottom: 16px; padding-bottom: 0; border: 0; justify-content: flex-end; }
+.workspace-panel > .panel-title > div:first-child,
+.configuration-center > .panel-title > div:first-child { display: none; }
+.management-toolbar { display: flex; min-height: 32px; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.toolbar-summary { display: inline-flex; align-items: center; gap: 10px; color: #606266; font-size: 13px; }
+.toolbar-summary i { width: 1px; height: 14px; background: #dcdfe6; }
+.element-filter-bar,
+.merchant-filter-bar,
+.product-filters,
+.order-filters,
+.search-row { align-items: center; min-height: 56px; padding: 10px 12px; border: 1px solid #ebeef5; border-radius: 4px; background: #f8fafc; }
+.element-filter-bar label { grid-template-columns: auto minmax(130px, 180px); align-items: center; gap: 8px; }
+.element-filter-bar label > span { color: #606266; font-size: 13px; font-weight: 400; white-space: nowrap; }
+.outline-btn,
+.primary-btn,
+.danger-btn { min-height: 32px; padding: 0 13px; border-radius: 4px; font-size: 13px; font-weight: 400; box-shadow: none; }
+.outline-btn { border-color: #dcdfe6; color: #606266; background: #ffffff; }
+.outline-btn:hover:not(:disabled) { border-color: #409eff; color: #409eff; background: #ecf5ff; box-shadow: none; }
+.primary-btn { border-color: #409eff; background: #409eff; }
+.primary-btn:hover:not(:disabled) { border-color: #66b1ff; background: #66b1ff; box-shadow: none; transform: none; }
+.icon-btn { width: 32px; height: 32px; border: 1px solid #dcdfe6; border-radius: 4px; color: #606266; background: #ffffff; }
+.icon-btn:hover:not(:disabled) { border-color: #409eff; color: #409eff; background: #ecf5ff; }
+.data-table { border: 1px solid #ebeef5; border-radius: 4px; overflow: hidden; }
+.data-table th { height: 44px; padding: 0 14px; color: #606266; background: #f5f7fa; font-size: 13px; font-weight: 500; letter-spacing: 0; }
+.data-table td { height: 52px; padding: 10px 14px; border-bottom-color: #ebeef5; color: #606266; }
+.data-table tbody tr:hover { background: #f5f7fa; }
+.data-table tbody tr.selected { background: #ecf5ff; box-shadow: inset 3px 0 0 #409eff; }
+.status-badge { padding: 3px 8px; border-radius: 3px; font-family: inherit; font-size: 12px; letter-spacing: 0; }
+.pagination { min-height: 52px; padding: 10px 0 0; color: #606266; font-size: 13px; }
+.capability-section { margin-top: 22px; padding-top: 20px; border-top: 1px solid #ebeef5; }
+.capability-section .section-heading { margin-bottom: 14px; }
+.capability-section .section-heading h4 { margin: 0 0 4px; color: #303133; font-size: 14px; font-weight: 600; }
+.capability-section .section-heading small { color: #909399; font-size: 12px; }
+.capability-editor { margin-top: 12px; padding: 16px; border: 1px solid #dcdfe6; border-radius: 4px; background: #fafafa; }
+.capability-editor-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; color: #303133; font-size: 13px; }
+.icon-btn.danger { color: #f56c6c; }
+.icon-btn.danger:hover { color: #fff; border-color: #f56c6c; background: #f56c6c; }
+.compact-empty { margin-top: 12px; padding: 18px; border: 1px dashed #dcdfe6; background: #fafafa; }
+.checkbox-field { display: flex; align-items: center; gap: 8px; }
+.checkbox-field input { width: 14px; height: 14px; margin: 0; accent-color: #409eff; }
+.drawer-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.drawer-actions .primary-btn,
+.drawer-actions .outline-btn { min-width: 88px; }
+:root[data-theme="midnight"] .workspace-panel,
+:root[data-theme="midnight"] .configuration-center { border-color: var(--line); background: var(--paper); }
+:root[data-theme="midnight"] .element-filter-bar,
+:root[data-theme="midnight"] .merchant-filter-bar,
+:root[data-theme="midnight"] .product-filters,
+:root[data-theme="midnight"] .order-filters,
+:root[data-theme="midnight"] .search-row { border-color: var(--line); background: var(--surface); }
+:root[data-theme="midnight"] .data-table { border-color: var(--line); }
+:root[data-theme="midnight"] .data-table th { color: var(--muted); background: #0d1725; }
+:root[data-theme="midnight"] .data-table tbody tr:hover { background: rgba(138, 234, 255, .05); }
+:root[data-theme="midnight"] .data-table tbody tr.selected { background: rgba(138, 234, 255, .09); box-shadow: inset 3px 0 0 var(--accent); }
+:root[data-theme="midnight"] .toolbar-summary { color: var(--muted); }
+:root[data-theme="midnight"] .toolbar-summary i { background: var(--line); }
+:root[data-theme="midnight"] .capability-section { border-color: var(--line); }
+:root[data-theme="midnight"] .capability-editor, :root[data-theme="midnight"] .compact-empty { border-color: var(--line); background: var(--surface-2); }
+@media (max-width: 700px) {
+  .management-toolbar { align-items: stretch; flex-direction: column; }
+  .management-toolbar .button-row { justify-content: flex-end; }
+  .element-filter-bar label { grid-template-columns: 1fr; }
+  .drawer-actions .primary-btn,
+  .drawer-actions .outline-btn { flex: 1; }
+}

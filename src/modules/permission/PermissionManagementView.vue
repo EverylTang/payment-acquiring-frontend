@@ -11,6 +11,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  ShieldCheck,
   UserRound,
   UsersRound,
 } from "lucide-vue-next";
@@ -55,6 +56,7 @@ const saving = ref(false);
 const createDrawerOpen = ref(false);
 const creating = ref(false);
 const roleEditDrawerOpen = ref(false);
+const authorizationDrawerOpen = ref(false);
 const editingRole = ref<AdminRole | null>(null);
 const editingRoleName = ref("");
 const updatingRole = ref(false);
@@ -230,6 +232,16 @@ const openEditRole = (role: AdminRole) => {
   roleEditDrawerOpen.value = true;
 };
 
+const openAuthorization = async (role: AdminRole) => {
+  await select(role.roleCode);
+  authorizationDrawerOpen.value = true;
+};
+
+const closeAuthorization = () => {
+  if (saving.value) return;
+  authorizationDrawerOpen.value = false;
+};
+
 const closeEditRole = () => {
   if (updatingRole.value) return;
   roleEditDrawerOpen.value = false;
@@ -378,6 +390,7 @@ const save = async () => {
       });
       emit("notice", "角色权限已保存");
     }
+    authorizationDrawerOpen.value = false;
   } catch (error) {
     emit("notice", error instanceof Error ? error.message : "角色配置保存失败");
   } finally {
@@ -391,7 +404,7 @@ onMounted(load);
 <template>
   <section class="panel workspace-panel role-access-page">
     <div class="panel-title">
-      <div><span class="eyebrow">ACCESS CONTROL</span><h3>角色权限配置</h3></div>
+      <div><span class="eyebrow">ACCESS CONTROL</span><h3>角色列表</h3></div>
       <div class="button-row">
         <button class="outline-btn" :disabled="loading" @click="load()"><RefreshCw :class="{ spin: loading }" :size="16" />刷新</button>
         <button v-if="hasPermission('system:role:update')" class="primary-btn" @click="openCreateDrawer"><Plus :size="16" />新增角色</button>
@@ -399,55 +412,22 @@ onMounted(load);
     </div>
 
     <div v-if="loading" class="empty"><LoaderCircle class="spin" :size="22" />加载中…</div>
-    <div v-else-if="!roles.length" class="empty">暂无可配置角色</div>
-    <div v-else class="role-access-layout">
-      <aside class="role-sidebar" aria-label="角色列表">
-        <div class="role-sidebar-heading"><span>角色</span><strong>{{ page.total }}</strong></div>
-        <div class="role-list">
-          <div v-for="role in roles" :key="role.roleCode" class="role-list-item" :class="{ active: selectedRole === role.roleCode }">
-            <button class="role-list-select" :aria-pressed="selectedRole === role.roleCode" @click="select(role.roleCode)"><span>{{ role.roleName }}</span><small>{{ role.roleCode }}</small></button>
-            <button v-if="hasPermission('system:role:update')" class="icon-btn role-list-edit" type="button" title="编辑角色名称" @click="openEditRole(role)"><Pencil :size="15" /></button>
-          </div>
-        </div>
-        <AppPagination :page="page.current" :page-size="page.pageSize" :total="page.total" noun="个角色" @change="load" />
-      </aside>
-
-      <section class="role-config" aria-live="polite">
-        <div class="role-config-heading">
-          <div><span class="eyebrow">ROLE</span><h4>{{ selectedRoleDetail?.roleName }}</h4><small>{{ selectedRoleDetail?.roleCode }}</small></div>
-          <span class="selection-count">已选 {{ selectedCount }} 项</span>
-        </div>
-        <div class="workspace-tabs role-config-tabs" role="tablist" aria-label="角色配置项">
-          <button :class="{ active: activeSection === 'access' }" role="tab" :aria-selected="activeSection === 'access'" @click="activeSection = 'access'">菜单与操作权限</button>
-          <button :class="{ active: activeSection === 'scope' }" role="tab" :aria-selected="activeSection === 'scope'" @click="activeSection = 'scope'">数据范围</button>
-        </div>
-
-        <div v-if="selectionLoading" class="empty role-config-loading"><LoaderCircle class="spin" :size="20" />加载角色配置…</div>
-        <template v-else>
-          <div class="role-config-actions"><button class="icon-btn" title="全选" @click="selectAll"><CheckCheck :size="17" /></button><button class="icon-btn" title="清空选择" @click="clearSelection"><Eraser :size="17" /></button></div>
-          <div v-if="activeSection === 'access' && catalog?.menus.length" class="permission-tree" role="tree" aria-label="菜单与操作权限">
-            <div v-for="row in permissionRows" :key="row.kind === 'permission' ? row.permission.permissionCode : row.node.menuCode" class="permission-tree-row" :class="[`permission-tree-${row.kind === 'permission' ? 'permission' : 'menu'}`, { nested: row.depth > 0 }]" :style="{ '--tree-depth': row.depth }" role="treeitem">
-              <template v-if="row.kind !== 'permission'">
-                <button v-if="row.node.children.length || row.node.permissions.length" class="tree-expand-btn" type="button" :title="isExpanded(row.node) ? '收起节点' : '展开节点'" @click="toggleExpanded(row.node)"><ChevronDown v-if="isExpanded(row.node)" :size="15" /><ChevronRight v-else :size="15" /></button>
-                <span v-else class="tree-expand-spacer"></span>
-                <label class="permission-tree-label"><input type="checkbox" :checked="isAccessNodeChecked(row.node, menus, permissions)" :indeterminate="isAccessNodeIndeterminate(row.node, menus, permissions)" @change="toggleAccessNode(row.node)" /><span>{{ row.node.menuName }}<small>{{ row.node.menuCode }}</small></span></label>
-              </template>
-              <label v-else class="permission-tree-label"><span class="tree-expand-spacer"></span><input v-model="permissions" type="checkbox" :value="row.permission.permissionCode" /><span>{{ row.permission.permissionName }}<small>{{ row.permission.permissionCode }}</small></span></label>
-            </div>
-            <div v-if="unmatchedPermissions.length" class="permission-tree-unmatched">
-              <span>未归类操作</span>
-              <label v-for="permission in unmatchedPermissions" :key="permission.permissionCode" class="permission-tree-label"><span class="tree-expand-spacer"></span><input v-model="permissions" type="checkbox" :value="permission.permissionCode" /><span>{{ permission.permissionName }}<small>{{ permission.permissionCode }}</small></span></label>
-            </div>
-          </div>
-          <div v-else-if="activeSection === 'scope'" class="scope-option-list" role="group" aria-label="数据范围">
-            <label v-for="option in scopeOptions" :key="option.code" class="scope-option" :class="{ selected: scopeTypes.includes(option.code) }"><input v-model="scopeTypes" type="checkbox" :value="option.code" @change="updateScope(option.code)" /><component :is="option.icon" :size="18" /><span><strong>{{ option.label }}</strong><small>{{ option.description }}</small></span><b>{{ option.code }}</b></label>
-          </div>
-          <div v-else class="empty role-catalog-empty">{{ catalogError || '暂无可授权菜单与操作权限' }}</div>
-          <div v-if="hasPermission('system:role:update')" class="role-save-bar"><button class="primary-btn" :disabled="saving" @click="save"><Save :size="16" />{{ saveLabel }}</button></div>
-        </template>
-      </section>
-    </div>
+    <div v-else class="table-wrap"><table class="data-table role-table"><thead><tr><th>角色名称</th><th>角色编码</th><th class="actions">操作</th></tr></thead><tbody><tr v-for="role in roles" :key="role.roleCode"><td><strong>{{ role.roleName }}</strong></td><td><span class="mono">{{ role.roleCode }}</span></td><td class="actions"><div class="button-row"><button v-if="hasPermission('system:role:update')" class="outline-btn" type="button" @click="openAuthorization(role)"><ShieldCheck :size="16" />授权</button><button v-if="hasPermission('system:role:update')" class="icon-btn" type="button" title="编辑角色名称" @click="openEditRole(role)"><Pencil :size="15" /></button></div></td></tr><tr v-if="!roles.length"><td colspan="3" class="empty">暂无可配置角色</td></tr></tbody></table></div>
+    <AppPagination :page="page.current" :page-size="page.pageSize" :total="page.total" noun="个角色" @change="load" />
   </section>
+  <AppDrawer v-if="authorizationDrawerOpen && selectedRoleDetail" title="角色授权" :description="`${selectedRoleDetail.roleName} · ${selectedRoleDetail.roleCode}`" @close="closeAuthorization">
+    <section class="drawer-section role-authorization" aria-live="polite">
+      <div class="workspace-tabs role-config-tabs" role="tablist" aria-label="角色配置项"><button :class="{ active: activeSection === 'access' }" role="tab" :aria-selected="activeSection === 'access'" @click="activeSection = 'access'">菜单与操作权限</button><button :class="{ active: activeSection === 'scope' }" role="tab" :aria-selected="activeSection === 'scope'" @click="activeSection = 'scope'">数据范围</button></div>
+      <div v-if="selectionLoading" class="empty role-config-loading"><LoaderCircle class="spin" :size="20" />加载角色配置…</div>
+      <template v-else>
+        <div class="role-config-actions"><span class="selection-count">已选 {{ selectedCount }} 项</span><div class="button-row"><button class="icon-btn" title="全选" @click="selectAll"><CheckCheck :size="17" /></button><button class="icon-btn" title="清空选择" @click="clearSelection"><Eraser :size="17" /></button></div></div>
+        <div v-if="activeSection === 'access' && catalog?.menus.length" class="permission-tree" role="tree" aria-label="菜单与操作权限"><div v-for="row in permissionRows" :key="row.kind === 'permission' ? row.permission.permissionCode : row.node.menuCode" class="permission-tree-row" :class="[`permission-tree-${row.kind === 'permission' ? 'permission' : 'menu'}`, { nested: row.depth > 0 }]" :style="{ '--tree-depth': row.depth }" role="treeitem"><template v-if="row.kind !== 'permission'"><button v-if="row.node.children.length || row.node.permissions.length" class="tree-expand-btn" type="button" :title="isExpanded(row.node) ? '收起节点' : '展开节点'" @click="toggleExpanded(row.node)"><ChevronDown v-if="isExpanded(row.node)" :size="15" /><ChevronRight v-else :size="15" /></button><span v-else class="tree-expand-spacer"></span><label class="permission-tree-label"><input type="checkbox" :checked="isAccessNodeChecked(row.node, menus, permissions)" :indeterminate="isAccessNodeIndeterminate(row.node, menus, permissions)" @change="toggleAccessNode(row.node)" /><span>{{ row.node.menuName }}<small>{{ row.node.menuCode }}</small></span></label></template><label v-else class="permission-tree-label"><span class="tree-expand-spacer"></span><input v-model="permissions" type="checkbox" :value="row.permission.permissionCode" /><span>{{ row.permission.permissionName }}<small>{{ row.permission.permissionCode }}</small></span></label></div><div v-if="unmatchedPermissions.length" class="permission-tree-unmatched"><span>未归类操作</span><label v-for="permission in unmatchedPermissions" :key="permission.permissionCode" class="permission-tree-label"><span class="tree-expand-spacer"></span><input v-model="permissions" type="checkbox" :value="permission.permissionCode" /><span>{{ permission.permissionName }}<small>{{ permission.permissionCode }}</small></span></label></div></div>
+        <div v-else-if="activeSection === 'scope'" class="scope-option-list" role="group" aria-label="数据范围"><label v-for="option in scopeOptions" :key="option.code" class="scope-option" :class="{ selected: scopeTypes.includes(option.code) }"><input v-model="scopeTypes" type="checkbox" :value="option.code" @change="updateScope(option.code)" /><component :is="option.icon" :size="18" /><span><strong>{{ option.label }}</strong><small>{{ option.description }}</small></span><b>{{ option.code }}</b></label></div>
+        <div v-else class="empty role-catalog-empty">{{ catalogError || '暂无可授权菜单与操作权限' }}</div>
+        <div v-if="hasPermission('system:role:update')" class="role-save-bar"><button class="primary-btn" :disabled="saving" @click="save"><Save :size="16" />{{ saveLabel }}</button></div>
+      </template>
+    </section>
+  </AppDrawer>
   <AppDrawer v-if="createDrawerOpen" title="新增角色" description="ROLE" @close="closeCreateDrawer">
     <form class="drawer-section role-create-form" @submit.prevent="create">
       <div class="form-grid role-form-fields">

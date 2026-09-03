@@ -26,7 +26,7 @@ export type MerchantProfile = {
 export type MerchantContact = { id: number; merchantId: string; contactType: string; contactName: string; email?: string; phone?: string; notifyEnabled: boolean; createdAt?: string; updatedAt?: string };
 export type MerchantCredential = { credentialId: string; merchantId: string; credentialType: string; secretHint: string; status: string; createdAt?: string; rotatedAt?: string; revokedAt?: string };
 export type RotatedCredential = { credentialId: string; credentialType: string; secret: string; createdAt: string };
-export type MerchantProduct = { bindingId: string; merchantId: string; merchantName: string; productCode: string; productName: string; status: string; createdAt: string; updatedAt: string; supportedCurrencies: string };
+export type MerchantProduct = { bindingId: string; merchantId: string; merchantName: string; productCode: string; productName: string; status: string; createdAt: string; updatedAt: string; supportedPaymentMethods: string };
 const pageQuery = (params: { page?: number; pageSize?: number }) => new URLSearchParams({ page: String(params.page || 1), pageSize: String(params.pageSize || 20) });
 export const getMerchants = (params: { page?: number; pageSize?: number } = {}) => request<PageResponse<Merchant>>(`/admin/v1/merchants?${pageQuery(params)}`);
 export const getMerchant = (id: string) => request<Merchant>(`/admin/v1/merchants/${encodeURIComponent(id)}`);

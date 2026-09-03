@@ -1168,7 +1168,7 @@ onMounted(async () => {
           >
             <div>
               <strong>{{ item.merchantName }} · {{ item.productName }}</strong
-              ><small>{{ item.merchantId }} / {{ item.productCode }} · 结算币种 {{ item.supportedCurrencies || "未配置" }}</small>
+              ><small>{{ item.merchantId }} / {{ item.productCode }} · 支付方式 {{ item.supportedPaymentMethods || "未配置" }}</small>
             </div>
             <span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span><div class="button-row"><button v-if="hasPermission('merchant-product:update')" class="outline-btn" @click="editMerchantProduct(item)">编辑</button><button v-if="hasPermission('merchant-product:status')" class="outline-btn" @click="toggleMerchantProduct(item)">{{ item.status === "ACTIVE" ? "停用" : "启用" }}</button></div>
           </div>
