@@ -1,0 +1,21 @@
+import { request } from "../../api";
+
+export type Country = { code: string; name: string; region: string | null; status: "ACTIVE" | "DISABLED" };
+export type Currency = { code: string; name: string; symbol: string | null; decimalPlaces: number; status: "ACTIVE" | "DISABLED" };
+export type CountryCurrency = { countryCode: string; countryName: string; currencyCode: string; currencyName: string; status: "ACTIVE" | "DISABLED" };
+export type Page<T> = { items: T[]; page: number; pageSize: number; total: number };
+const page = (params: { page?: number; pageSize?: number; status?: string; countryCode?: string } = {}) => new URLSearchParams({ page: String(params.page || 1), pageSize: String(params.pageSize || 10), ...(params.status ? { status: params.status } : {}), ...(params.countryCode ? { countryCode: params.countryCode } : {}) });
+export const getCountries = (params: { page?: number; pageSize?: number; status?: string } = {}) => request<Page<Country>>(`/admin/v1/master-data/countries?${page(params)}`);
+export const getCurrencies = (params: { page?: number; pageSize?: number; status?: string } = {}) => request<Page<Currency>>(`/admin/v1/master-data/currencies?${page(params)}`);
+export const getCountryCurrencies = (params: { page?: number; pageSize?: number; status?: string; countryCode?: string } = {}) => request<Page<CountryCurrency>>(`/admin/v1/master-data/country-currencies?${page(params)}`);
+export const getActiveCountries = () => request<Country[]>("/admin/v1/master-data/countries/active");
+export const getActiveCurrencies = (countryCode?: string) => request<Currency[]>(`/admin/v1/master-data/currencies/active${countryCode ? `?countryCode=${encodeURIComponent(countryCode)}` : ""}`);
+export const createCountry = (value: Omit<Country, "status">) => request<Country>("/admin/v1/master-data/countries", { method: "POST", body: JSON.stringify(value) });
+export const updateCountry = (code: string, value: Omit<Country, "code" | "status">) => request<Country>(`/admin/v1/master-data/countries/${encodeURIComponent(code)}`, { method: "PUT", body: JSON.stringify({ code, ...value }) });
+export const createCurrency = (value: Omit<Currency, "status">) => request<Currency>("/admin/v1/master-data/currencies", { method: "POST", body: JSON.stringify(value) });
+export const createCurrencyForCountry = (countryCode: string, value: Omit<Currency, "status">) => request<CountryCurrency>(`/admin/v1/master-data/countries/${encodeURIComponent(countryCode)}/currencies`, { method: "POST", body: JSON.stringify(value) });
+export const updateCurrency = (code: string, value: Omit<Currency, "code" | "status">) => request<Currency>(`/admin/v1/master-data/currencies/${encodeURIComponent(code)}`, { method: "PUT", body: JSON.stringify({ code, ...value }) });
+export const changeCountryStatus = (code: string, status: string) => request<void>(`/admin/v1/master-data/countries/${encodeURIComponent(code)}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
+export const changeCurrencyStatus = (code: string, status: string) => request<void>(`/admin/v1/master-data/currencies/${encodeURIComponent(code)}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
+export const createCountryCurrency = (value: Pick<CountryCurrency, "countryCode" | "currencyCode">) => request<CountryCurrency>("/admin/v1/master-data/country-currencies", { method: "POST", body: JSON.stringify(value) });
+export const changeCountryCurrencyStatus = (countryCode: string, currencyCode: string, status: string) => request<void>(`/admin/v1/master-data/country-currencies/${encodeURIComponent(countryCode)}/${encodeURIComponent(currencyCode)}/status`, { method: "PATCH", body: JSON.stringify({ status }) });

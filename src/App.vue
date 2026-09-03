@@ -12,6 +12,7 @@ import {
   Link,
   LoaderCircle,
   LogOut,
+  MapPinned,
   Network,
   Palette,
   RefreshCw,
@@ -31,7 +32,6 @@ import { getRoles, getUsers, type AdminUser } from "./modules/user/api";
 import { getPermissionCatalog, getRolePermissions, type AdminRole, type PermissionCatalog } from "./modules/permission/api";
 import { callbackOrder, cancelOrder, cancelPaymentAttempt, createOrder, createPaymentAttempt, getOrder, getOrderHealth, getOrderPage, getOrderStatistics, queryPaymentAttempt, retryPaymentAttempt, type CreateOrderRequest, type Order, type OrderPage, type PaymentAttempt } from "./modules/order/api";
 import { getChannelHealth, getOverview, getSnapshot, type DashboardOverview } from "./modules/dashboard/api";
-import { getAdminList, type AdminRecord } from "./modules/operations/api";
 import { authState, hasPermission, signOut } from "./auth";
 import { changePassword } from "./modules/auth/api";
 import { preferences, setLocale, setTheme, type AppLocale, type AppTheme } from "./preferences";
@@ -46,9 +46,10 @@ import ConfigurationCenterView from "./modules/configuration/ConfigurationCenter
 import MenuManagementView from "./modules/menu/MenuManagementView.vue";
 import RoutingRuleManagementView from "./modules/routing/RoutingRuleManagementView.vue";
 import PricingRuleManagementView from "./modules/pricing/PricingRuleManagementView.vue";
+import MasterDataView from "./modules/master-data/MasterDataView.vue";
 import AppDrawer from "./components/AppDrawer.vue";
 
-const active = ref("总览");
+const active = ref<string | null>(null);
 const busy = ref(false);
 const notice = ref("");
 const accountMenuOpen = ref(false);
@@ -69,7 +70,6 @@ const orderForm = ref<CreateOrderRequest>({
   amount: 100,
 });
 const overview = ref<DashboardOverview | null>(null);
-const records = ref<AdminRecord[]>([]);
 const selectedMerchant = ref<Merchant | null>(null);
 const selectedMerchantSection = ref<"profile" | "contacts" | "credentials">("profile");
 const products = ref<Product[]>([]);
@@ -116,6 +116,7 @@ const iconMap = {
   Settings2,
   Users,
   UsersRound,
+  MapPinned,
 };
 type NavigationItem = {
   code: string;
@@ -140,6 +141,7 @@ const pageByComponent: Record<string, string> = {
   product: "产品管理",
   "merchant-products": "商户产品",
   "merchant-product": "商户产品",
+  "master-data": "国家与币种",
   routing: "路由与渠道",
   "routing-rules": "路由规则管理",
   pricing: "费率与结算",
@@ -159,6 +161,7 @@ const englishMenuLabels: Record<string, string> = {
   merchant: "Merchants",
   product: "Products",
   "merchant-product": "Merchant products",
+  "master-data": "Countries & currencies",
   routing: "Routing & channels",
   "routing-rules": "Routing rules",
   pricing: "Pricing & settlement",
@@ -176,6 +179,7 @@ const englishPageLabels: Record<string, string> = {
   商户管理: "Merchants",
   产品管理: "Products",
   商户产品: "Merchant products",
+  国家与币种: "Countries & currencies",
   路由与渠道: "Routing & channels",
   路由规则管理: "Routing rules management",
   费率与结算: "Pricing & settlement",
@@ -189,8 +193,10 @@ const englishPageLabels: Record<string, string> = {
 };
 const displayMenuLabel = (code: string, label: string) =>
   preferences.locale === "en-US" ? englishMenuLabels[code] || englishPageLabels[label] || label : label;
-const displayPageLabel = (label: string) =>
-  preferences.locale === "en-US" ? englishPageLabels[label] || label : label;
+const displayPageLabel = (label: string | null) => {
+  if (!label) return preferences.locale === "en-US" ? "No authorized menu" : "未授权菜单";
+  return preferences.locale === "en-US" ? englishPageLabels[label] || label : label;
+};
 const accountCopy = computed(() =>
   preferences.locale === "en-US"
     ? {
@@ -258,14 +264,19 @@ const handleSignOut = () => {
 };
 const menuGroups = computed<NavigationGroup[]>(() => {
   const items = authState.access?.menus || [];
-  const toNav = (item: (typeof items)[number]): NavigationItem => ({
-    code: item.menuCode,
-    parentId: item.parentId,
-    label: item.menuName,
-    page: pageByComponent[item.componentKey || item.menuCode] || item.menuName,
-    icon: iconMap[item.icon as keyof typeof iconMap] || Store,
-  });
-  const pages = items.filter((item) => item.menuType === "PAGE").map(toNav);
+  const pages = items
+    .filter((item) => item.menuType === "PAGE")
+    .flatMap((item): NavigationItem[] => {
+      const page = pageByComponent[item.componentKey || item.menuCode];
+      if (!page) return [];
+      return [{
+        code: item.menuCode,
+        parentId: item.parentId,
+        label: item.menuName,
+        page,
+        icon: iconMap[item.icon as keyof typeof iconMap] || Store,
+      }];
+    });
   const directories = items.filter((item) => item.menuType === "DIRECTORY");
   const groups: NavigationGroup[] = [];
   const grouped = new Set<string>();
@@ -307,13 +318,6 @@ watch(
   },
   { immediate: true },
 );
-const resourceMap: Record<string, string> = {
-  商户管理: "merchants",
-  产品管理: "products",
-  路由与渠道: "channels",
-  费率与结算: "pricing-rules",
-  风控工作台: "risk-policies",
-};
 const isOverview = computed(() => active.value === "总览");
 const run = async <T,>(action: () => Promise<T>, success = "") => {
   busy.value = true;
@@ -373,17 +377,19 @@ const loadPage = async (label: string) => {
     return;
   }
   if (["路由与渠道", "费率与结算", "风控工作台"].includes(label)) return;
-  const resource = resourceMap[label];
-  if (!resource) return;
-  listLoading.value = true;
-  try {
-    records.value = (await getAdminList(resource)).items;
-  } catch (error) {
-    notice.value = error instanceof Error ? error.message : "列表加载失败";
-  } finally {
-    listLoading.value = false;
-  }
 };
+watch(
+  menuGroups,
+  (groups) => {
+    if (active.value === "商户详情") return;
+    const pages = groups.flatMap((group) => group.items);
+    if (pages.some((item) => item.page === active.value)) return;
+    const firstPage = pages[0];
+    active.value = firstPage?.page ?? null;
+    if (firstPage) void loadPage(firstPage.page);
+  },
+  { immediate: true },
+);
 const loadRolePermissions = async () => {
   listLoading.value = true;
   try {
@@ -594,6 +600,7 @@ const checkHealth = async () => {
   if (result) channelHealth.value = result.status;
 };
 const refresh = async () => {
+  if (active.value !== "总览") return;
   await loadOverview();
   await checkHealth();
 };
@@ -603,7 +610,6 @@ onMounted(async () => {
   } catch {
     serviceOnline.value = false;
   }
-  await refresh();
 });
 </script>
 
@@ -715,7 +721,7 @@ onMounted(async () => {
           <span class="live"
             ><i :class="{ offline: !serviceOnline }"></i
             >{{ serviceOnline ? "交易服务正常" : "交易服务不可用" }}</span
-          ><button class="icon-btn" title="刷新数据" @click="refresh">
+          ><button class="icon-btn" title="刷新数据" :disabled="!isOverview" @click="refresh">
             <RefreshCw :size="18" /></button
           ><span class="avatar">{{ accountInitial }}</span>
         </div>
@@ -1010,6 +1016,10 @@ onMounted(async () => {
         v-else-if="active === '产品管理'"
         @notice="notice = $event"
       />
+      <MasterDataView
+        v-else-if="active === '国家与币种'"
+        @notice="notice = $event"
+      />
       <!--
         <div class="panel-title">
           <div>
@@ -1196,55 +1206,8 @@ onMounted(async () => {
         v-else-if="active === '菜单管理'"
         @notice="notice = $event"
       />
-      <section v-else-if="active !== '商户详情'" class="panel workspace-panel">
-        <div class="panel-title">
-          <div>
-            <span class="eyebrow">{{ active.toUpperCase() }}</span>
-            <h3>{{ active }}列表</h3>
-          </div>
-          <button class="outline-btn" @click="loadPage(active)">
-            <RefreshCw :size="16" />刷新
-          </button>
-        </div>
-        <div v-if="listLoading" class="empty">
-          <LoaderCircle class="spin" :size="22" />加载中…
-        </div>
-        <div v-else-if="!records.length" class="empty">暂无数据</div>
-        <div v-else class="record-list">
-          <div
-            v-for="record in records"
-            :key="
-              String(
-                record.merchantId ||
-                  record.productCode ||
-                  record.channelId ||
-                  record.ruleId ||
-                  record.policyId,
-              )
-            "
-            class="record-row"
-          >
-            <div>
-              <strong>{{
-                record.name ||
-                record.productCode ||
-                record.channelId ||
-                record.ruleId ||
-                record.policyId
-              }}</strong
-              ><small>{{
-                record.status || record.scope || record.currency
-              }}</small>
-            </div>
-            <b>{{
-              record.health ||
-              record.feeRate ||
-              record.decision ||
-              record.weight ||
-              ""
-            }}</b>
-          </div>
-        </div>
+      <section v-else-if="!active" class="panel workspace-panel">
+        <div class="empty">当前账号未获授权菜单，请联系管理员。</div>
       </section>
     </main>
     <AppDrawer
