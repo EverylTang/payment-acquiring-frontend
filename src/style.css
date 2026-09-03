@@ -235,8 +235,10 @@ header h1 { margin: 6px 0 0; font-family: 'IBM Plex Sans SC', 'Noto Sans SC', sa
 .binding-form { grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto; margin-bottom: 18px; }
 .split-panel { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; }
 .role-list { display: grid; align-content: start; gap: 8px; }
-.role-list button { display: flex; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); text-align: left; }
-.role-list button.active { border-color: rgba(8, 145, 178, .5); background: var(--accent-soft); box-shadow: 0 0 14px rgba(8, 145, 178, .12); }
+.role-list-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.role-list-item.active { border-color: rgba(8, 145, 178, .5); background: var(--accent-soft); box-shadow: 0 0 14px rgba(8, 145, 178, .12); }
+.role-list-select { display: flex; justify-content: space-between; gap: 12px; min-width: 0; padding: 12px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); text-align: left; }
+.role-list-edit { margin-right: 8px; }
 .role-list small { color: var(--muted-light); font: 10px 'DM Mono', monospace; }
 .check-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 12px 0 24px; }
 .check-grid label { display: flex; gap: 8px; align-items: flex-start; padding: 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink-soft); }
@@ -245,10 +247,93 @@ header h1 { margin: 6px 0 0; font-family: 'IBM Plex Sans SC', 'Noto Sans SC', sa
 .data-scope-panel h4 { margin: 0; color: var(--ink); }
 .data-scope-panel p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
 .data-scope-options { margin-bottom: 14px; }
+.role-access-layout { display: grid; grid-template-columns: minmax(210px, 250px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.role-sidebar { min-width: 0; padding-right: 20px; border-right: 1px solid var(--line); }
+.role-sidebar-heading, .role-config-heading, .role-config-actions, .role-save-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.role-sidebar-heading { margin-bottom: 10px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.role-sidebar-heading strong, .selection-count { color: var(--accent-dark); font: 600 11px 'DM Mono', monospace; }
+.role-list button span, .role-list button small { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.role-config { min-width: 0; }
+.role-config-heading { min-height: 52px; margin-bottom: 14px; }
+.role-config-heading h4 { margin: 3px 0 0; color: var(--ink); font-size: 16px; }
+.role-config-heading small { display: block; margin-top: 3px; color: var(--muted-light); font: 10px 'DM Mono', monospace; }
+.role-config-tabs { margin: 0 0 14px; }
+.role-config-actions { justify-content: flex-end; margin: -2px 0 10px; }
+.role-check-grid { margin: 0; }
+.role-check-grid label { min-height: 58px; }
+.role-check-grid label > span { min-width: 0; line-height: 1.35; }
+.role-check-grid input { flex: 0 0 auto; margin-top: 2px; accent-color: var(--accent); }
+.role-check-grid small { margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.permission-tree { overflow: hidden; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.permission-tree-row, .permission-tree-unmatched { min-height: 36px; padding-left: calc(10px + var(--tree-depth, 0) * 22px); border-bottom: 1px solid var(--line); }
+.permission-tree-row:last-of-type { border-bottom: 0; }
+.permission-tree-row.nested { position: relative; }
+.permission-tree-row.nested::before { position: absolute; top: 0; bottom: 0; left: calc(16px + (var(--tree-depth, 0) - 1) * 22px); border-left: 1px solid var(--line); content: ""; }
+.permission-tree-menu { font-weight: 600; }
+.permission-tree-permission { color: var(--ink-soft); }
+.permission-tree-label { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 36px; padding: 5px 10px 5px 0; color: inherit; font-size: 12px; cursor: pointer; }
+.permission-tree-label:hover { background: var(--accent-soft); }
+.permission-tree-label input { flex: 0 0 auto; width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
+.permission-tree-label > span:last-child { min-width: 0; }
+.permission-tree-label small { display: inline; margin-left: 8px; color: var(--muted-light); font: 10px 'DM Mono', monospace; }
+.tree-expand-btn, .tree-expand-spacer { display: inline-grid; place-items: center; width: 20px; height: 36px; flex: 0 0 20px; color: var(--muted); }
+.tree-expand-btn { border: 0; border-radius: 4px; background: transparent; cursor: pointer; }
+.tree-expand-btn:hover { color: var(--accent-dark); background: var(--accent-soft); }
+.permission-tree-menu { display: flex; align-items: center; }
+.permission-tree-unmatched { display: grid; padding: 8px 10px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.permission-tree-unmatched .permission-tree-label { padding-left: 20px; color: var(--ink-soft); font-weight: 400; }
+.permission-tree-create { max-height: 460px; overflow: auto; }
+.scope-option-list { display: grid; gap: 8px; }
+.scope-option { display: grid; grid-template-columns: 16px 22px minmax(0, 1fr) auto; align-items: center; min-height: 56px; gap: 10px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink-soft); background: var(--surface); cursor: pointer; transition: border-color .16s ease, background .16s ease; }
+.scope-option:hover { border-color: var(--accent); background: var(--accent-soft); }
+.scope-option.selected { border-color: var(--accent); color: var(--ink); background: var(--accent-soft); }
+.scope-option input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
+.scope-option > svg { color: var(--accent-dark); }
+.scope-option > span { min-width: 0; }
+.scope-option strong, .scope-option small { display: block; }
+.scope-option strong { font-size: 12px; font-weight: 600; }
+.scope-option small { margin-top: 2px; color: var(--muted-light); font-size: 11px; }
+.scope-option b { padding: 2px 5px; border: 1px solid var(--line-dark); border-radius: 4px; color: var(--muted); background: var(--surface-raised); font: 10px 'DM Mono', monospace; }
+.role-catalog-empty { min-height: 140px; margin: 0; border: 1px dashed var(--line-dark); border-radius: 8px; }
+.role-config-loading { min-height: 180px; }
+.role-save-bar { justify-content: flex-end; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.role-create-form { display: grid; gap: 20px; }
+.role-edit-form { display: grid; gap: 18px; }
+.role-create-selection { padding-top: 18px; border-top: 1px solid var(--line); }
+.role-create-selection h4 { margin: 0 0 12px; color: var(--ink); font-size: 13px; }
 .menu-form { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 10px; margin-bottom: 18px; padding: 18px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255, 255, 255, .6); }
 .menu-form .primary-btn { min-height: 42px; }
 .menu-visible { display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid var(--line-dark); border-radius: 6px; color: var(--ink-soft); background: rgba(255, 255, 255, .8); font-size: 12px; }
 .menu-visible input { width: auto; height: auto; }
+.menu-record-row { grid-template-columns: minmax(0, 1fr) auto auto auto; }
+.danger-icon-btn { border-color: rgba(220, 38, 38, .22); color: var(--danger); }
+.danger-icon-btn:hover { border-color: rgba(220, 38, 38, .5); background: rgba(220, 38, 38, .08); }
+.menu-drawer-form, .permission-drawer-form { display: grid; gap: 16px; }
+.drawer-check { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 12px; }
+.drawer-check input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
+.menu-resource-types { display: grid; gap: 10px; margin: 0; padding: 14px 0 0; border: 0; border-top: 1px solid var(--line); }
+.menu-resource-types legend { padding: 0; color: var(--ink); font-size: 12px; font-weight: 600; }
+.resource-types-toolbar { display: flex; justify-content: flex-end; margin-top: -28px; }
+.resource-type-create { padding: 4px 8px; font-size: 11px; }
+.resource-type-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.resource-type-option { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 9px 10px; border: 1px solid var(--line-dark); border-radius: 6px; color: var(--ink-soft); background: var(--surface-raised); cursor: pointer; transition: border-color .15s ease, background .15s ease; }
+.resource-type-option:hover { border-color: var(--accent); }
+.resource-type-option.selected { border-color: var(--accent); background: rgba(37, 99, 235, .06); }
+.resource-type-option input { width: 15px; height: 15px; flex: 0 0 auto; margin: 0; accent-color: var(--accent); }
+.resource-type-option span { display: grid; min-width: 0; gap: 2px; }
+.resource-type-option b { overflow: hidden; color: var(--ink); font-size: 12px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.resource-type-option small { overflow: hidden; color: var(--muted-light); font: 10px 'DM Mono', monospace; text-overflow: ellipsis; white-space: nowrap; }
+.drawer-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.drawer-section-heading h4, .permission-list-section h4 { margin: 0; color: var(--ink); font-size: 13px; }
+.permission-code-input { display: flex; align-items: center; overflow: hidden; border: 1px solid var(--line-dark); border-radius: 6px; background: var(--surface-raised); }
+.permission-code-input b { flex: 0 0 auto; padding: 0 10px; color: var(--muted); font: 11px 'DM Mono', monospace; }
+.permission-code-input input { border: 0; border-left: 1px solid var(--line); border-radius: 0; background: transparent; }
+.permission-record-list { display: grid; }
+.permission-record-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.permission-record-row:last-child { border-bottom: 0; }
+.permission-record-row strong, .permission-record-row small { display: block; }
+.permission-record-row strong { color: var(--ink); font-size: 12px; }
+.permission-record-row small { margin-top: 3px; overflow: hidden; color: var(--muted-light); font: 10px 'DM Mono', monospace; text-overflow: ellipsis; white-space: nowrap; }
 .user-create-form { display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)) minmax(240px, 1.3fr) auto; gap: 10px; margin-bottom: 18px; padding: 18px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255, 255, 255, .6); }
 .role-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-height: 42px; }
 .role-choice label { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-soft); font-size: 12px; white-space: nowrap; }
@@ -257,6 +342,14 @@ header h1 { margin: 6px 0 0; font-family: 'IBM Plex Sans SC', 'Noto Sans SC', sa
 .user-editor { display: grid; gap: 14px; }
 .user-editor-section { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
 .user-editor-section h4 { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--ink); }
+.user-form { display: grid; gap: 20px; }
+.user-form-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.form-field { display: grid; gap: 7px; min-width: 0; color: var(--ink-soft); font-size: 12px; font-weight: 600; }
+.form-field > span { line-height: 1.2; }
+.form-field-full { grid-column: 1 / -1; }
+.user-form-section { min-width: 0; margin: 0; padding: 20px 0 0; border: 0; border-top: 1px solid var(--line); }
+.user-form-section legend, .user-form-section h4 { margin: 0 0 12px; padding: 0; color: var(--ink); font-size: 13px; font-weight: 600; }
+.user-form-section .form-field + .drawer-submit { margin-top: 14px; }
 .status-badge { flex: 0 0 auto; padding: 4px 10px; border: 1px solid rgba(8, 145, 178, .3); border-radius: 999px; color: var(--accent-dark); background: var(--accent-soft); font: 500 10px 'DM Mono', monospace; letter-spacing: .5px; }
 .detail-panel { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 18px; }
 .detail-panel h4 { color: var(--ink); }
@@ -381,7 +474,10 @@ button.record-row:hover { padding-left: 20px; background: rgba(8, 145, 178, .05)
   .form-grid, .order-create .form-grid, .order-filters { grid-template-columns: 1fr; }
   .config-form-grid, .release-create { grid-template-columns: 1fr; }
   .menu-form { grid-template-columns: 1fr; }
+  .resource-type-grid { grid-template-columns: 1fr; }
   .user-create-form, .user-editor-section { grid-template-columns: 1fr; }
+  .user-form-fields { grid-template-columns: 1fr; }
+  .form-field-full { grid-column: auto; }
   .release-create .primary-btn { grid-column: auto; }
   .order-filters .primary-btn { width: 100%; }
   .health-row { grid-template-columns: 8px minmax(0,1fr) auto; }
@@ -964,6 +1060,9 @@ button.record-row:hover, .record-row:hover {
 
 @media (max-width: 820px) {
   .workspace-panel, .configuration-center { margin-top: 20px; }
+  .role-access-layout { grid-template-columns: 1fr; gap: 18px; }
+  .role-sidebar { padding: 0 0 18px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .role-sidebar .role-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .order-filters { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .order-filters .primary-btn { width: 100%; }
   .panel-title { margin-bottom: 16px; padding-bottom: 14px; }
@@ -971,6 +1070,8 @@ button.record-row:hover, .record-row:hover {
 
 @media (max-width: 560px) {
   .workspace-panel, .configuration-center { padding: 16px; }
+  .role-sidebar .role-list, .role-check-grid, .scope-choice-grid { grid-template-columns: 1fr; }
+  .role-config-heading { align-items: flex-start; }
   .panel-title { align-items: flex-start; }
   .order-filters, .search-row { grid-template-columns: 1fr; padding: 10px; }
   .search-row .outline-btn, .search-row .primary-btn { width: 100%; }

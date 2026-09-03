@@ -144,7 +144,7 @@ const englishTexts: Record<string, string> = {
   "关闭编辑": "Close editor",
   "保存用户": "Save user",
   "商户数据范围": "Merchant data scope",
-  "商户 ID，多个以逗号分隔；留空表示不分配": "Merchant IDs, comma-separated; leave blank for none",
+  "多个 ID 请用逗号分隔；留空表示可查看全部商户": "Merchant IDs, comma-separated; leave blank for all merchants",
   "保存商户范围": "Save merchant scope",
   "重置密码": "Reset password",
   "新密码（至少 12 位）": "New password (12+ characters)",
