@@ -10,6 +10,7 @@ const proxyTargets: Record<string, string> = {
 export default defineConfig(({ mode }) => ({
   plugins: [vue()],
   server: {
+    host: true,
     proxy: {
       '/api': {
         target: proxyTargets[mode] || proxyTargets.dev,

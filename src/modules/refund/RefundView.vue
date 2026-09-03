@@ -79,7 +79,7 @@ const execute = async () => {
     <div v-if="result" class="record-row">
       <strong>{{ result.refundId }}</strong
       ><span>{{ result.amount }} {{ result.currency }}</span
-      ><b>{{ result.status }}</b><button v-if="result.status === 'PENDING'" class="outline-btn" :disabled="loading" @click="execute">执行退款</button>
+      ><span class="status-badge" :class="'st-' + result.status.toLowerCase()">{{ result.status }}</span><button v-if="result.status === 'PENDING'" class="outline-btn" :disabled="loading" @click="execute">执行退款</button>
     </div>
   </section>
 </template>

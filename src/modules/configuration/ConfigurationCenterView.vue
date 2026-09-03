@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { Check, FileDiff, Plus, RefreshCw, RotateCcw, Send, ToggleLeft } from "lucide-vue-next";
+import { Check, FileDiff, RefreshCw, RotateCcw, Send, ToggleLeft } from "lucide-vue-next";
 import { authState } from "../../auth";
 import {
   changeChannelStatus,
@@ -25,6 +25,9 @@ import {
   type RiskPolicy,
   type RoutingRule,
 } from "./api";
+import AppDialog from "../../components/AppDialog.vue";
+import AppPagination from "../../components/AppPagination.vue";
+import AppDrawer from "../../components/AppDrawer.vue";
 
 const props = defineProps<{ section: "routing" | "pricing" | "risk" }>();
 const emit = defineEmits<{ notice: [message: string] }>();
@@ -36,6 +39,14 @@ const routes = ref<RoutingRule[]>([]);
 const pricing = ref<PricingRule[]>([]);
 const policies = ref<RiskPolicy[]>([]);
 const releases = ref<ConfigRelease[]>([]);
+const channelPage = ref({ current: 1, pageSize: 20, total: 0 });
+const routePage = ref({ current: 1, pageSize: 20, total: 0 });
+const pricingPage = ref({ current: 1, pageSize: 20, total: 0 });
+const policyPage = ref({ current: 1, pageSize: 20, total: 0 });
+const releasePage = ref({ current: 1, pageSize: 20, total: 0 });
+const activeView = ref<"records" | "releases">("records");
+const routingView = ref<"channels" | "routes">("channels");
+const drawer = ref<"config" | "route" | "release" | null>(null);
 const selectedDiff = ref<Record<string, unknown> | null>(null);
 const releaseConfig = ref("{}");
 const releaseReason = ref("");
@@ -56,6 +67,7 @@ const canCreateRelease = computed(() =>
 );
 const canApprove = computed(() => authState.user?.roles.includes("ADMIN") ?? false);
 const title = computed(() => ({ routing: "路由与渠道", pricing: "费率与结算", risk: "风控工作台" })[props.section]);
+const createLabel = computed(() => ({ routing: routingView.value === "channels" ? "新增渠道" : "新增路由规则", pricing: "新增费率规则", risk: "新增风控策略" })[props.section]);
 const draftReleases = computed(() => releases.value.filter((item) => item.status === "DRAFT"));
 
 const parseObject = (value: string, field: string) => {
@@ -70,23 +82,45 @@ const parseObject = (value: string, field: string) => {
 const load = async () => {
   loading.value = true;
   try {
-    const requests: Promise<unknown>[] = [getReleases()];
-    if (props.section === "routing") requests.push(getChannels(), getRoutingRules());
-    if (props.section === "pricing") requests.push(getPricingRules());
-    if (props.section === "risk") requests.push(getRiskPolicies());
+    const requests: Promise<unknown>[] = [getReleases({ page: releasePage.value.current, pageSize: releasePage.value.pageSize })];
+    if (props.section === "routing") requests.push(
+      getChannels({ page: channelPage.value.current, pageSize: channelPage.value.pageSize }),
+      getRoutingRules({ page: routePage.value.current, pageSize: routePage.value.pageSize }),
+    );
+    if (props.section === "pricing") requests.push(getPricingRules({ page: pricingPage.value.current, pageSize: pricingPage.value.pageSize }));
+    if (props.section === "risk") requests.push(getRiskPolicies({ page: policyPage.value.current, pageSize: policyPage.value.pageSize }));
     const values = await Promise.all(requests);
-    releases.value = (values[0] as { items: ConfigRelease[] }).items;
+    const releaseResult = values[0] as { items: ConfigRelease[]; page: number; pageSize: number; total: number };
+    releases.value = releaseResult.items;
+    releasePage.value = { current: releaseResult.page, pageSize: releaseResult.pageSize, total: releaseResult.total };
     if (props.section === "routing") {
-      channels.value = (values[1] as { items: Channel[] }).items;
-      routes.value = (values[2] as { items: RoutingRule[] }).items;
+      const channelResult = values[1] as { items: Channel[]; page: number; pageSize: number; total: number };
+      const routeResult = values[2] as { items: RoutingRule[]; page: number; pageSize: number; total: number };
+      channels.value = channelResult.items;
+      routes.value = routeResult.items;
+      channelPage.value = { current: channelResult.page, pageSize: channelResult.pageSize, total: channelResult.total };
+      routePage.value = { current: routeResult.page, pageSize: routeResult.pageSize, total: routeResult.total };
     }
-    if (props.section === "pricing") pricing.value = (values[1] as { items: PricingRule[] }).items;
-    if (props.section === "risk") policies.value = (values[1] as { items: RiskPolicy[] }).items;
+    if (props.section === "pricing") {
+      const pricingResult = values[1] as { items: PricingRule[]; page: number; pageSize: number; total: number };
+      pricing.value = pricingResult.items;
+      pricingPage.value = { current: pricingResult.page, pageSize: pricingResult.pageSize, total: pricingResult.total };
+    }
+    if (props.section === "risk") {
+      const policyResult = values[1] as { items: RiskPolicy[]; page: number; pageSize: number; total: number };
+      policies.value = policyResult.items;
+      policyPage.value = { current: policyResult.page, pageSize: policyResult.pageSize, total: policyResult.total };
+    }
   } catch (error) {
     emit("notice", error instanceof Error ? error.message : "运营配置加载失败");
   } finally {
     loading.value = false;
   }
+};
+const changePage = (kind: "channel" | "route" | "pricing" | "policy" | "release", current: number) => {
+  const pages = { channel: channelPage, route: routePage, pricing: pricingPage, policy: policyPage, release: releasePage };
+  pages[kind].value.current = current;
+  return load();
 };
 const perform = async (action: () => Promise<unknown>, success: string) => {
   saving.value = true;
@@ -135,11 +169,20 @@ const toggle = (kind: "channel" | "route" | "pricing" | "risk", id: string, stat
     if (kind === "pricing") return changePricingRuleStatus(id, target);
     return changeRiskPolicyStatus(id, target);
   }, "状态已更新");
-const releaseAction = (release: ConfigRelease, action: "submit" | "approve" | "publish" | "rollback") => {
-  const label = { submit: "提交审核", approve: "审核通过", publish: "正式发布", rollback: "回滚生成草稿" }[action];
-  const reason = window.prompt(`请输入${label}原因`, "运营后台操作")?.trim();
-  if (!reason) return;
-  return perform(() => transitionRelease(release.releaseId, action, reason), `${label}完成`);
+const releaseLabels = { submit: "提交审核", approve: "审核通过", publish: "正式发布", rollback: "回滚生成草稿" } as const;
+const pendingRelease = ref<{ release: ConfigRelease; action: keyof typeof releaseLabels } | null>(null);
+const releaseAction = (release: ConfigRelease, action: keyof typeof releaseLabels) => {
+  pendingRelease.value = { release, action };
+};
+const doReleaseAction = (reason: string) => {
+  const pending = pendingRelease.value;
+  pendingRelease.value = null;
+  if (!pending || !reason) return;
+  const label = releaseLabels[pending.action];
+  return perform(
+    () => transitionRelease(pending.release.releaseId, pending.action, reason),
+    `${label}完成`,
+  );
 };
 const showDiff = async (release: ConfigRelease) => {
   try {
@@ -155,57 +198,81 @@ onMounted(load);
   <section class="workspace-panel configuration-center">
     <div class="panel-title">
       <div><span class="eyebrow">CONFIGURATION CENTER</span><h3>{{ title }}</h3></div>
-      <button class="outline-btn" :disabled="loading" @click="load"><RefreshCw :class="{ spin: loading }" :size="16" />刷新</button>
+      <div class="button-row">
+        <button v-if="activeView === 'records' && canOperate" class="primary-btn" @click="drawer = section === 'routing' && routingView === 'routes' ? 'route' : 'config'">{{ createLabel }}</button>
+        <button v-if="activeView === 'releases' && canCreateRelease" class="primary-btn" @click="drawer = 'release'">创建草稿</button>
+        <button class="icon-btn" title="刷新" :disabled="loading" @click="load"><RefreshCw :class="{ spin: loading }" :size="16" /></button>
+      </div>
     </div>
-    <p class="configuration-summary">配置先进入草稿版本，再提交审核和发布；页面仅展示已由后端授权的操作。</p>
+    <div class="workspace-tabs" role="tablist">
+      <button :class="{ active: activeView === 'records' }" @click="activeView = 'records'">列表管理</button>
+      <button :class="{ active: activeView === 'releases' }" @click="activeView = 'releases'">版本发布</button>
+    </div>
 
-    <div v-if="canOperate" class="configuration-form">
-      <template v-if="section === 'routing'">
-        <h4>新增渠道</h4>
-        <div class="form-grid config-form-grid">
-          <input v-model="channelForm.channelId" placeholder="渠道 ID" /><input v-model="channelForm.name" placeholder="渠道名称" /><input v-model="channelForm.provider" placeholder="服务商" /><input v-model.number="channelForm.weight" type="number" min="1" placeholder="渠道权重" />
-          <input v-model="channelForm.country" placeholder="国家" /><input v-model="channelForm.currency" maxlength="3" placeholder="币种" /><input v-model="channelForm.paymentMethod" placeholder="支付方式" /><input v-model.number="channelForm.minAmount" type="number" min="0.01" step="0.01" placeholder="最小金额" /><input v-model.number="channelForm.maxAmount" type="number" min="0.01" step="0.01" placeholder="最大金额" /><input v-model="channelForm.configuration" placeholder='渠道配置 JSON，如 {"terminal":"..."}' />
-        </div>
-        <button class="primary-btn" :disabled="saving" @click="createConfigItem"><Plus :size="16" />新增渠道</button>
+    <section v-if="activeView === 'records'" class="configuration-subpage">
+      <div v-if="section === 'routing'" class="workspace-tabs workspace-tabs-compact" role="tablist">
+        <button :class="{ active: routingView === 'channels' }" @click="routingView = 'channels'">渠道</button>
+        <button :class="{ active: routingView === 'routes' }" @click="routingView = 'routes'">路由规则</button>
+      </div>
+      <template v-if="section === 'routing' && routingView === 'channels'">
+        <div class="section-heading"><h4>渠道列表</h4><span>{{ channelPage.total }} 个渠道</span></div>
+        <div v-if="loading" class="empty">加载中…</div>
+        <div v-else-if="!channels.length" class="empty">暂无渠道配置</div>
+        <div v-else class="record-list"><div v-for="item in channels" :key="item.channelId" class="record-row"><div><strong>{{ item.name }}</strong><small>{{ item.channelId }} · {{ item.provider }} · 权重 {{ item.weight }}</small></div><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span><button v-if="canApprove" class="icon-btn" title="切换渠道状态" @click="toggle('channel', item.channelId, item.status)"><ToggleLeft :size="17" /></button></div></div>
+        <AppPagination :page="channelPage.current" :page-size="channelPage.pageSize" :total="channelPage.total" noun="个渠道" @change="(current) => changePage('channel', current)" />
+      </template>
+      <template v-else-if="section === 'routing'">
+        <div class="section-heading"><h4>路由规则</h4><span>{{ routePage.total }} 条规则</span></div>
+        <div v-if="loading" class="empty">加载中…</div>
+        <div v-else-if="!routes.length" class="empty">暂无路由规则</div>
+        <div v-else class="record-list"><div v-for="item in routes" :key="item.ruleId" class="record-row"><div><strong>{{ item.productCode }} → {{ item.channelId }}</strong><small>{{ item.ruleId }} · v{{ item.releaseVersion }} · {{ item.paymentMethod }} / {{ item.currency }} · 优先级 {{ item.priority }}</small></div><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span><button v-if="canApprove" class="icon-btn" title="切换规则状态" @click="toggle('route', item.ruleId, item.status)"><ToggleLeft :size="17" /></button></div></div>
+        <AppPagination :page="routePage.current" :page-size="routePage.pageSize" :total="routePage.total" noun="条规则" @change="(current) => changePage('route', current)" />
       </template>
       <template v-else-if="section === 'pricing'">
-        <h4>新增费率规则</h4>
-        <div class="form-grid config-form-grid">
-          <input v-model="pricingForm.ruleId" placeholder="规则 ID" /><select v-model="pricingForm.releaseId"><option value="">选择草稿版本</option><option v-for="item in draftReleases" :key="item.releaseId" :value="item.releaseId">v{{ item.versionNo }} · {{ item.releaseId }}</option></select><input v-model="pricingForm.productCode" placeholder="产品编码" /><input v-model="pricingForm.merchantId" placeholder="商户 ID（可选）" />
-          <input v-model="pricingForm.currency" maxlength="3" placeholder="币种" /><input v-model.number="pricingForm.feeRate" type="number" min="0" step="0.000001" placeholder="费率" /><input v-model.number="pricingForm.fixedFee" type="number" min="0" step="0.01" placeholder="固定费用" /><select v-model="pricingForm.feeMode"><option>EXCLUSIVE</option><option>INCLUSIVE</option></select><input v-model.number="pricingForm.minAmount" type="number" min="0.01" step="0.01" placeholder="最小金额" /><input v-model.number="pricingForm.maxAmount" type="number" min="0.01" step="0.01" placeholder="最大金额" />
-        </div>
-        <button class="primary-btn" :disabled="saving" @click="createConfigItem"><Plus :size="16" />新增费率规则</button>
+        <div class="section-heading"><h4>费率规则</h4><span>{{ pricingPage.total }} 条规则</span></div>
+        <div v-if="loading" class="empty">加载中…</div>
+        <div v-else-if="!pricing.length" class="empty">暂无费率规则</div>
+        <div v-else class="record-list"><div v-for="item in pricing" :key="item.ruleId" class="record-row"><div><strong>{{ item.productCode }} · {{ item.feeRate }} + {{ item.fixedFee }} {{ item.currency }}</strong><small>{{ item.ruleId }} · v{{ item.releaseVersion }} · {{ item.feeMode }} · {{ item.merchantId || "全商户" }}</small></div><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span><button v-if="canApprove" class="icon-btn" title="切换规则状态" @click="toggle('pricing', item.ruleId, item.status)"><ToggleLeft :size="17" /></button></div></div>
+        <AppPagination :page="pricingPage.current" :page-size="pricingPage.pageSize" :total="pricingPage.total" noun="条规则" @change="(current) => changePage('pricing', current)" />
       </template>
       <template v-else>
-        <h4>新增风控策略</h4>
-        <div class="form-grid config-form-grid">
-          <input v-model="riskForm.policyId" placeholder="策略 ID" /><select v-model="riskForm.releaseId"><option value="">选择草稿版本</option><option v-for="item in draftReleases" :key="item.releaseId" :value="item.releaseId">v{{ item.versionNo }} · {{ item.releaseId }}</option></select><input v-model="riskForm.name" placeholder="策略名称" /><input v-model.number="riskForm.priority" type="number" min="1" placeholder="优先级" />
-          <select v-model="riskForm.decision"><option>REVIEW</option><option>PASS</option><option>REJECT</option></select><input v-model="riskForm.condition" placeholder='条件 JSON，如 {"amountGt":1000}' />
-        </div>
-        <button class="primary-btn" :disabled="saving" @click="createConfigItem"><Plus :size="16" />新增风控策略</button>
+        <div class="section-heading"><h4>风控策略</h4><span>{{ policyPage.total }} 条策略</span></div>
+        <div v-if="loading" class="empty">加载中…</div>
+        <div v-else-if="!policies.length" class="empty">暂无风控策略</div>
+        <div v-else class="record-list"><div v-for="item in policies" :key="item.policyId" class="record-row"><div><strong>{{ item.name }} · {{ item.decision }}</strong><small>{{ item.policyId }} · v{{ item.releaseVersion }} · 优先级 {{ item.priority }} · {{ JSON.stringify(item.condition) }}</small></div><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span><button v-if="canApprove" class="icon-btn" title="切换策略状态" @click="toggle('risk', item.policyId, item.status)"><ToggleLeft :size="17" /></button></div></div>
+        <AppPagination :page="policyPage.current" :page-size="policyPage.pageSize" :total="policyPage.total" noun="条策略" @change="(current) => changePage('policy', current)" />
       </template>
-    </div>
+    </section>
 
-    <div v-if="section === 'routing'" class="configuration-section">
-      <div class="section-heading"><h4>渠道列表</h4><span>{{ channels.length }} 个渠道</span></div>
+    <section v-else class="configuration-subpage">
+      <div class="section-heading"><div><span class="eyebrow">RELEASE CONTROL</span><h4>配置版本与发布</h4></div><span>{{ releasePage.total }} 个版本</span></div>
       <div v-if="loading" class="empty">加载中…</div>
-      <div v-else-if="!channels.length" class="empty">暂无渠道配置</div>
-      <div v-else class="record-list"><div v-for="item in channels" :key="item.channelId" class="record-row"><div><strong>{{ item.name }}</strong><small>{{ item.channelId }} · {{ item.provider }} · 权重 {{ item.weight }}</small></div><span class="status-badge">{{ item.status }}</span><button v-if="canApprove" class="icon-btn" title="切换渠道状态" @click="toggle('channel', item.channelId, item.status)"><ToggleLeft :size="17" /></button></div></div>
-      <div v-if="canOperate" class="configuration-form compact-form"><h4>新增路由规则</h4><div class="form-grid config-form-grid"><input v-model="routeForm.ruleId" placeholder="规则 ID" /><select v-model="routeForm.releaseId"><option value="">选择草稿版本</option><option v-for="item in draftReleases" :key="item.releaseId" :value="item.releaseId">v{{ item.versionNo }}</option></select><input v-model="routeForm.productCode" placeholder="产品编码" /><input v-model="routeForm.merchantId" placeholder="商户 ID（可选）" /><input v-model="routeForm.channelId" placeholder="渠道 ID" /><input v-model="routeForm.paymentMethod" placeholder="支付方式" /><input v-model="routeForm.country" placeholder="国家" /><input v-model="routeForm.currency" maxlength="3" placeholder="币种" /><input v-model.number="routeForm.priority" type="number" min="1" placeholder="优先级" /><input v-model.number="routeForm.weight" type="number" min="1" placeholder="规则权重" /></div><button class="primary-btn" :disabled="saving" @click="createRoute"><Plus :size="16" />新增路由规则</button></div>
-      <div class="section-heading"><h4>路由规则</h4><span>{{ routes.length }} 条规则</span></div>
-      <div v-if="!loading && !routes.length" class="empty">暂无路由规则</div>
-      <div v-else class="record-list"><div v-for="item in routes" :key="item.ruleId" class="record-row"><div><strong>{{ item.productCode }} → {{ item.channelId }}</strong><small>{{ item.ruleId }} · v{{ item.releaseVersion }} · {{ item.paymentMethod }} / {{ item.currency }} · 优先级 {{ item.priority }}</small></div><span class="status-badge">{{ item.status }}</span><button v-if="canApprove" class="icon-btn" title="切换规则状态" @click="toggle('route', item.ruleId, item.status)"><ToggleLeft :size="17" /></button></div></div>
-    </div>
-
-    <div v-if="section === 'pricing'" class="configuration-section"><div class="section-heading"><h4>费率规则</h4><span>{{ pricing.length }} 条规则</span></div><div v-if="loading" class="empty">加载中…</div><div v-else-if="!pricing.length" class="empty">暂无费率规则</div><div v-else class="record-list"><div v-for="item in pricing" :key="item.ruleId" class="record-row"><div><strong>{{ item.productCode }} · {{ item.feeRate }} + {{ item.fixedFee }} {{ item.currency }}</strong><small>{{ item.ruleId }} · v{{ item.releaseVersion }} · {{ item.feeMode }} · {{ item.merchantId || "全商户" }}</small></div><span class="status-badge">{{ item.status }}</span><button v-if="canApprove" class="icon-btn" title="切换规则状态" @click="toggle('pricing', item.ruleId, item.status)"><ToggleLeft :size="17" /></button></div></div></div>
-    <div v-if="section === 'risk'" class="configuration-section"><div class="section-heading"><h4>风控策略</h4><span>{{ policies.length }} 条策略</span></div><div v-if="loading" class="empty">加载中…</div><div v-else-if="!policies.length" class="empty">暂无风控策略</div><div v-else class="record-list"><div v-for="item in policies" :key="item.policyId" class="record-row"><div><strong>{{ item.name }} · {{ item.decision }}</strong><small>{{ item.policyId }} · v{{ item.releaseVersion }} · 优先级 {{ item.priority }} · {{ JSON.stringify(item.condition) }}</small></div><span class="status-badge">{{ item.status }}</span><button v-if="canApprove" class="icon-btn" title="切换策略状态" @click="toggle('risk', item.policyId, item.status)"><ToggleLeft :size="17" /></button></div></div></div>
-
-    <div class="configuration-section release-section">
-      <div class="section-heading"><div><span class="eyebrow">RELEASE CONTROL</span><h4>配置版本与发布</h4></div><span>{{ releases.length }} 个版本</span></div>
-      <div v-if="canCreateRelease" class="release-create"><input v-model="releaseReason" placeholder="创建草稿原因" /><input v-model="releaseConfig" placeholder='发布配置 JSON，如 {"description":"..."}' /><button class="primary-btn" :disabled="saving" @click="createConfigRelease"><Plus :size="16" />创建草稿</button></div>
-      <div v-if="!loading && !releases.length" class="empty">暂无发布版本</div>
-      <div v-else class="record-list"><div v-for="item in releases" :key="item.releaseId" class="release-row"><div><strong>版本 v{{ item.versionNo }}</strong><small>{{ item.releaseId }} · 创建人 {{ item.createdBy }} · {{ item.createdAt }}</small></div><span class="status-badge">{{ item.status }}</span><div class="button-row"><button class="icon-btn" title="查看版本差异" @click="showDiff(item)"><FileDiff :size="16" /></button><button v-if="canCreateRelease && item.status === 'DRAFT'" class="icon-btn" title="提交审核" @click="releaseAction(item, 'submit')"><Send :size="16" /></button><button v-if="canApprove && item.status === 'IN_REVIEW'" class="icon-btn" title="审核通过" @click="releaseAction(item, 'approve')"><Check :size="16" /></button><button v-if="canApprove && item.status === 'APPROVED'" class="icon-btn" title="正式发布" @click="releaseAction(item, 'publish')"><Send :size="16" /></button><button v-if="canApprove && item.status === 'PUBLISHED'" class="icon-btn" title="回滚生成草稿" @click="releaseAction(item, 'rollback')"><RotateCcw :size="16" /></button></div></div></div>
+      <div v-else-if="!releases.length" class="empty">暂无发布版本</div>
+      <div v-else class="record-list"><div v-for="item in releases" :key="item.releaseId" class="release-row"><div><strong>版本 v{{ item.versionNo }}</strong><small>{{ item.releaseId }} · 创建人 {{ item.createdBy }} · {{ item.createdAt }}</small></div><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span><div class="button-row"><button class="icon-btn" title="查看版本差异" @click="showDiff(item)"><FileDiff :size="16" /></button><button v-if="canCreateRelease && item.status === 'DRAFT'" class="icon-btn" title="提交审核" @click="releaseAction(item, 'submit')"><Send :size="16" /></button><button v-if="canApprove && item.status === 'IN_REVIEW'" class="icon-btn" title="审核通过" @click="releaseAction(item, 'approve')"><Check :size="16" /></button><button v-if="canApprove && item.status === 'APPROVED'" class="icon-btn" title="正式发布" @click="releaseAction(item, 'publish')"><Send :size="16" /></button><button v-if="canApprove && item.status === 'PUBLISHED'" class="icon-btn" title="回滚生成草稿" @click="releaseAction(item, 'rollback')"><RotateCcw :size="16" /></button></div></div></div>
+      <AppPagination :page="releasePage.current" :page-size="releasePage.pageSize" :total="releasePage.total" noun="个版本" @change="(current) => changePage('release', current)" />
       <pre v-if="selectedDiff">{{ JSON.stringify(selectedDiff, null, 2) }}</pre>
-    </div>
+    </section>
+
+    <AppDrawer v-if="drawer" :title="drawer === 'release' ? '创建发布草稿' : drawer === 'route' ? '新增路由规则' : createLabel" description="CONFIGURATION" @close="drawer = null">
+      <div v-if="drawer === 'config'" class="drawer-section">
+        <template v-if="section === 'routing'"><div class="form-grid drawer-form-grid"><input v-model="channelForm.channelId" placeholder="渠道 ID" /><input v-model="channelForm.name" placeholder="渠道名称" /><input v-model="channelForm.provider" placeholder="服务商" /><input v-model.number="channelForm.weight" type="number" min="1" placeholder="渠道权重" /><input v-model="channelForm.country" placeholder="国家" /><input v-model="channelForm.currency" maxlength="3" placeholder="币种" /><input v-model="channelForm.paymentMethod" placeholder="支付方式" /><input v-model.number="channelForm.minAmount" type="number" min="0.01" step="0.01" placeholder="最小金额" /><input v-model.number="channelForm.maxAmount" type="number" min="0.01" step="0.01" placeholder="最大金额" /><input v-model="channelForm.configuration" placeholder='渠道配置 JSON，如 {"terminal":"..."}' /></div></template>
+        <template v-else-if="section === 'pricing'"><div class="form-grid drawer-form-grid"><input v-model="pricingForm.ruleId" placeholder="规则 ID" /><select v-model="pricingForm.releaseId"><option value="">选择草稿版本</option><option v-for="item in draftReleases" :key="item.releaseId" :value="item.releaseId">v{{ item.versionNo }} · {{ item.releaseId }}</option></select><input v-model="pricingForm.productCode" placeholder="产品编码" /><input v-model="pricingForm.merchantId" placeholder="商户 ID（可选）" /><input v-model="pricingForm.currency" maxlength="3" placeholder="币种" /><input v-model.number="pricingForm.feeRate" type="number" min="0" step="0.000001" placeholder="费率" /><input v-model.number="pricingForm.fixedFee" type="number" min="0" step="0.01" placeholder="固定费用" /><select v-model="pricingForm.feeMode"><option>EXCLUSIVE</option><option>INCLUSIVE</option></select><input v-model.number="pricingForm.minAmount" type="number" min="0.01" step="0.01" placeholder="最小金额" /><input v-model.number="pricingForm.maxAmount" type="number" min="0.01" step="0.01" placeholder="最大金额" /></div></template>
+        <template v-else><div class="form-grid drawer-form-grid"><input v-model="riskForm.policyId" placeholder="策略 ID" /><select v-model="riskForm.releaseId"><option value="">选择草稿版本</option><option v-for="item in draftReleases" :key="item.releaseId" :value="item.releaseId">v{{ item.versionNo }} · {{ item.releaseId }}</option></select><input v-model="riskForm.name" placeholder="策略名称" /><input v-model.number="riskForm.priority" type="number" min="1" placeholder="优先级" /><select v-model="riskForm.decision"><option>REVIEW</option><option>PASS</option><option>REJECT</option></select><input v-model="riskForm.condition" placeholder='条件 JSON，如 {"amountGt":1000}' /></div></template>
+        <button class="primary-btn drawer-submit" :disabled="saving" @click="createConfigItem">{{ createLabel }}</button>
+      </div>
+      <div v-else-if="drawer === 'route'" class="drawer-section"><div class="form-grid drawer-form-grid"><input v-model="routeForm.ruleId" placeholder="规则 ID" /><select v-model="routeForm.releaseId"><option value="">选择草稿版本</option><option v-for="item in draftReleases" :key="item.releaseId" :value="item.releaseId">v{{ item.versionNo }}</option></select><input v-model="routeForm.productCode" placeholder="产品编码" /><input v-model="routeForm.merchantId" placeholder="商户 ID（可选）" /><input v-model="routeForm.channelId" placeholder="渠道 ID" /><input v-model="routeForm.paymentMethod" placeholder="支付方式" /><input v-model="routeForm.country" placeholder="国家" /><input v-model="routeForm.currency" maxlength="3" placeholder="币种" /><input v-model.number="routeForm.priority" type="number" min="1" placeholder="优先级" /><input v-model.number="routeForm.weight" type="number" min="1" placeholder="规则权重" /></div><button class="primary-btn drawer-submit" :disabled="saving" @click="createRoute">新增路由规则</button></div>
+      <div v-else class="drawer-section"><div class="drawer-form-grid"><input v-model="releaseReason" placeholder="创建草稿原因" /><input v-model="releaseConfig" placeholder='发布配置 JSON，如 {"description":"..."}' /></div><button class="primary-btn drawer-submit" :disabled="saving" @click="createConfigRelease">创建草稿</button></div>
+    </AppDrawer>
+    <AppDialog
+      v-if="pendingRelease"
+      :title="releaseLabels[pendingRelease.action]"
+      :message="`版本 v${pendingRelease.release.versionNo} · ${pendingRelease.release.releaseId}`"
+      :confirm-text="releaseLabels[pendingRelease.action]"
+      :danger="pendingRelease.action === 'rollback'"
+      input-placeholder="请输入操作原因"
+      input-value="运营后台操作"
+      @confirm="doReleaseAction"
+      @cancel="pendingRelease = null"
+    />
   </section>
 </template>

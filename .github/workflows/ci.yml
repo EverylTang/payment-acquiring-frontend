@@ -18,6 +18,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - run: npm run typecheck
       - run: npm run build:dev
       - run: npm run build:stage
       - run: npm run build:prod

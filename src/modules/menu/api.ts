@@ -14,9 +14,9 @@ export type AdminMenu = {
   status: "ACTIVE" | "DISABLED";
 };
 
-export const getMenus = () =>
+export const getMenus = (params: { page?: number; pageSize?: number } = {}) =>
   request<{ items: AdminMenu[]; page: number; pageSize: number; total: number }>(
-    "/admin/v1/menus?page=1&pageSize=100",
+    `/admin/v1/menus?${new URLSearchParams({ page: String(params.page || 1), pageSize: String(params.pageSize || 20) })}`,
   );
 export const createMenu = (payload: Omit<AdminMenu, "id" | "parentId" | "status"> & { parentMenuCode?: string }) =>
   request<AdminMenu>("/admin/v1/menus", {

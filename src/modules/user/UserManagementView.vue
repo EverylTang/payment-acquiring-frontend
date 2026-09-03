@@ -17,9 +17,9 @@ import {
   resetUserPassword,
   updateUser,
   updateUserDataScope,
-  type AdminRole,
   type AdminUser,
 } from "./api";
+import type { AdminRole } from "../permission/api";
 
 const users = ref<AdminUser[]>([]);
 const roles = ref<AdminRole[]>([]);
@@ -145,7 +145,7 @@ onMounted(load);
   <section class="panel workspace-panel">
     <div class="panel-title">
       <div><span class="eyebrow">SYSTEM USERS</span><h3>用户管理</h3></div>
-      <button class="outline-btn" @click="load"><RefreshCw :size="16" />刷新</button>
+      <button class="outline-btn" @click="load()"><RefreshCw :size="16" />刷新</button>
     </div>
     <div class="user-create-form">
       <input v-model="form.username" placeholder="用户名" />
@@ -161,7 +161,7 @@ onMounted(load);
     <div v-else class="record-list">
       <div v-for="user in users" :key="user.id" class="record-row">
         <div><strong>{{ user.displayName }} · {{ user.username }}</strong><small>{{ user.roles.join(" · ") }}</small></div>
-        <span class="status-badge">{{ user.status }}</span>
+        <span class="status-badge" :class="'st-' + user.status.toLowerCase()">{{ user.status }}</span>
         <div class="button-row"><button class="icon-btn" title="编辑用户" @click="select(user)"><UserRoundPen :size="16" /></button><button class="icon-btn" title="切换用户状态" @click="updateStatus(user)"><ToggleLeft :size="16" /></button></div>
       </div>
     </div>

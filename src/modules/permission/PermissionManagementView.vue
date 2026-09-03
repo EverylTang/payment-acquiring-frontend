@@ -12,20 +12,23 @@ import {
   type PermissionCatalog,
 } from "./api";
 import { hasPermission } from "../../auth";
+import AppPagination from "../../components/AppPagination.vue";
 const emit = defineEmits<{ notice: [message: string] }>();
 const roles = ref<AdminRole[]>([]);
+const page = ref({ current: 1, pageSize: 20, total: 0 });
 const catalog = ref<PermissionCatalog | null>(null);
 const selectedRole = ref("");
 const menus = ref<string[]>([]);
 const permissions = ref<string[]>([]);
 const scopeTypes = ref<string[]>([]);
-const load = async () => {
+const load = async (current = page.value.current) => {
   try {
     const [rolePage, value] = await Promise.all([
-      getRoles(),
+      getRoles({ page: current, pageSize: page.value.pageSize }),
       getPermissionCatalog(),
     ]);
     roles.value = rolePage.items;
+    page.value = { current: rolePage.page, pageSize: rolePage.pageSize, total: rolePage.total };
     catalog.value = value;
     await select(roles.value[0]?.roleCode || "");
   } catch (error) {
@@ -71,7 +74,7 @@ onMounted(load);
         <span class="eyebrow">ACCESS CONTROL</span>
         <h3>角色权限配置</h3>
       </div>
-      <button class="outline-btn" @click="load">
+      <button class="outline-btn" @click="() => load()">
         <RefreshCw :size="16" />刷新
       </button>
     </div>
@@ -85,6 +88,7 @@ onMounted(load);
         >
           {{ role.roleName }}<small>{{ role.roleCode }}</small>
         </button>
+        <AppPagination :page="page.current" :page-size="page.pageSize" :total="page.total" noun="个角色" @change="load" />
       </div>
       <div>
         <h4>菜单权限</h4>

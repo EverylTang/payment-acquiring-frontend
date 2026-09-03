@@ -8,6 +8,7 @@ export const getDeadOutbox = () => request<{ items: OutboxEvent[] }>("/admin/v1/
 export const redriveOutbox = (eventId: string, reason: string) => request<OutboxEvent>(`/admin/v1/outbox/${encodeURIComponent(eventId)}/redrive`, { method: "POST", body: JSON.stringify({ reason }) });
 export const getReconciliationDifferences = () => request<{ items: ReconciliationDifference[] }>("/admin/v1/reconciliation/differences");
 export const resolveReconciliationDifference = (id: string, reason: string) => request<Record<string, string>>(`/admin/v1/reconciliation/differences/${encodeURIComponent(id)}/resolve`, { method: "POST", body: JSON.stringify({ reason }) });
-export const getOperationAudits = () => request<{ items: OperationAudit[]; page: number; pageSize: number; total: number }>("/admin/v1/audits?page=1&pageSize=20");
+export const getOperationAudits = (params: { page?: number; pageSize?: number } = {}) =>
+  request<{ items: OperationAudit[]; page: number; pageSize: number; total: number }>(`/admin/v1/audits?${new URLSearchParams({ page: String(params.page || 1), pageSize: String(params.pageSize || 20) })}`);
 export const importReconciliationBill = (payload: { billId: string; channelId: string; billDate: string; currency: string; totalAmount: number; totalCount: number; lines: Array<Record<string, unknown>> }) => request<Record<string, unknown>>("/admin/v1/reconciliation/bills", { method: "POST", body: JSON.stringify(payload) });
 export const reconcileBill = (billId: string) => request<Record<string, unknown>>(`/admin/v1/reconciliation/bills/${encodeURIComponent(billId)}/reconcile`, { method: "POST" });

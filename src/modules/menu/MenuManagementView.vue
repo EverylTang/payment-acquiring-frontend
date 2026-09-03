@@ -2,11 +2,13 @@
 import { onMounted, ref } from "vue";
 import { Plus, RefreshCw, ToggleLeft } from "lucide-vue-next";
 import { changeMenuStatus, createMenu, getMenus, type AdminMenu } from "./api";
+import AppPagination from "../../components/AppPagination.vue";
 
 const emit = defineEmits<{ notice: [message: string] }>();
 const menus = ref<AdminMenu[]>([]);
 const loading = ref(false);
 const saving = ref(false);
+const page = ref({ current: 1, pageSize: 20, total: 0 });
 const form = ref({
   menuCode: "",
   menuName: "",
@@ -19,10 +21,12 @@ const form = ref({
   visible: true,
 });
 
-const load = async () => {
+const load = async (current = page.value.current) => {
   loading.value = true;
   try {
-    menus.value = (await getMenus()).items;
+    const result = await getMenus({ page: current, pageSize: page.value.pageSize });
+    menus.value = result.items;
+    page.value = { current: result.page, pageSize: result.pageSize, total: result.total };
   } catch (error) {
     emit("notice", error instanceof Error ? error.message : "菜单加载失败");
   } finally {
@@ -32,11 +36,11 @@ const load = async () => {
 const save = async () => {
   saving.value = true;
   try {
-    const created = await createMenu({
+    await createMenu({
       ...form.value,
       parentMenuCode: form.value.parentMenuCode || undefined,
     });
-    menus.value = [...menus.value, created].sort((a, b) => a.sortOrder - b.sortOrder);
+    await load(1);
     form.value = {
       menuCode: "",
       menuName: "",
@@ -76,7 +80,7 @@ onMounted(load);
   <section class="panel workspace-panel">
     <div class="panel-title">
       <div><span class="eyebrow">SYSTEM MENU</span><h3>菜单管理</h3></div>
-      <button class="outline-btn" :disabled="loading" @click="load"><RefreshCw :class="{ spin: loading }" :size="16" />刷新</button>
+      <button class="outline-btn" :disabled="loading" @click="() => load()"><RefreshCw :class="{ spin: loading }" :size="16" />刷新</button>
     </div>
     <div class="menu-form">
       <input v-model="form.menuCode" placeholder="菜单编码，如 system:report" /><input v-model="form.menuName" placeholder="菜单名称" /><select v-model="form.menuType"><option>PAGE</option><option>DIRECTORY</option></select><input v-model="form.parentMenuCode" placeholder="父级菜单编码（可选）" />
@@ -88,8 +92,9 @@ onMounted(load);
     <div v-else class="record-list">
       <div v-for="menu in menus" :key="menu.menuCode" class="record-row">
         <div><strong>{{ menu.menuName }}</strong><small>{{ menu.menuCode }} · {{ menu.menuType }} · {{ menu.routePath || "无路由" }} · 排序 {{ menu.sortOrder }}</small></div>
-        <span class="status-badge">{{ menu.status }} / {{ menu.visible ? "VISIBLE" : "HIDDEN" }}</span><button class="icon-btn" title="切换菜单状态" @click="toggle(menu)"><ToggleLeft :size="17" /></button>
+        <span class="status-badge" :class="'st-' + menu.status.toLowerCase()">{{ menu.status }}</span><span class="status-badge" :class="menu.visible ? 'st-visible' : 'st-hidden'">{{ menu.visible ? "VISIBLE" : "HIDDEN" }}</span><button class="icon-btn" title="切换菜单状态" @click="toggle(menu)"><ToggleLeft :size="17" /></button>
       </div>
     </div>
+    <AppPagination :page="page.current" :page-size="page.pageSize" :total="page.total" noun="个菜单" @change="load" />
   </section>
 </template>

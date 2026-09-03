@@ -7,7 +7,8 @@ export const getProducts = (params: { page?: number; pageSize?: number } = {}) =
 export const createProduct = (payload: { productCode: string; name: string }) => request<Product>("/admin/v1/products", { method: "POST", body: JSON.stringify(payload) });
 export const updateProduct = (code: string, payload: { name: string }) => request<Product>(`/admin/v1/products/${encodeURIComponent(code)}`, { method: "PUT", body: JSON.stringify(payload) });
 export const changeProductStatus = (code: string, status: string) => request<Product>(`/admin/v1/products/${encodeURIComponent(code)}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
-export const getProductCapabilities = (code: string) => request<PageResponse<ProductCapability>>(`/admin/v1/products/${encodeURIComponent(code)}/capabilities?page=1&pageSize=100`);
+export const getProductCapabilities = (code: string, params: { page?: number; pageSize?: number } = {}) =>
+  request<PageResponse<ProductCapability>>(`/admin/v1/products/${encodeURIComponent(code)}/capabilities?${pageQuery(params)}`);
 export const createProductCapability = (code: string, payload: Omit<ProductCapability, "capabilityId" | "productCode" | "status">) => request<ProductCapability>(`/admin/v1/products/${encodeURIComponent(code)}/capabilities`, { method: "POST", body: JSON.stringify(payload) });
 export const updateProductCapability = (code: string, id: string, payload: Omit<ProductCapability, "capabilityId" | "productCode" | "status">) => request<ProductCapability>(`/admin/v1/products/${encodeURIComponent(code)}/capabilities/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) });
 export const changeProductCapabilityStatus = (code: string, id: string, status: string) => request<ProductCapability>(`/admin/v1/products/${encodeURIComponent(code)}/capabilities/${encodeURIComponent(id)}/status`, { method: "PATCH", body: JSON.stringify({ status }) });

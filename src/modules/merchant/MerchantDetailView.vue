@@ -20,6 +20,7 @@ import {
   type MerchantProfile,
 } from "./api";
 import { hasPermission } from "../../auth";
+import AppDialog from "../../components/AppDialog.vue";
 
 const props = defineProps<{ merchant: Merchant }>();
 const emit = defineEmits<{ back: []; notice: [message: string] }>();
@@ -133,8 +134,14 @@ const editContact = (contact: MerchantContact) => {
     notifyEnabled: contact.notifyEnabled,
   };
 };
-const deleteContact = async (contact: MerchantContact) => {
-  if (!window.confirm(`确认删除联系人“${contact.contactName}”？`)) return;
+const confirmDelete = ref<MerchantContact | null>(null);
+const deleteContact = (contact: MerchantContact) => {
+  confirmDelete.value = contact;
+};
+const doDeleteContact = async () => {
+  const contact = confirmDelete.value;
+  confirmDelete.value = null;
+  if (!contact) return;
   try {
     await deleteMerchantContact(props.merchant.merchantId, contact.id);
     contacts.value = contacts.value.filter((item) => item.id !== contact.id);
@@ -279,7 +286,7 @@ onMounted(load);
                 {{ credential.createdAt || "--" }}</small
               >
             </div>
-            <b>{{ credential.status }}</b
+            <span class="status-badge" :class="'st-' + credential.status.toLowerCase()">{{ credential.status }}</span
             ><button
               v-if="credential.status === 'ACTIVE'"
               class="danger-btn"
@@ -292,5 +299,14 @@ onMounted(load);
         </article>
       </div>
     </template>
+    <AppDialog
+      v-if="confirmDelete"
+      title="删除联系人"
+      :message="`确认删除联系人“${confirmDelete.contactName}”？删除后不可恢复。`"
+      confirm-text="确认删除"
+      danger
+      @confirm="doDeleteContact"
+      @cancel="confirmDelete = null"
+    />
   </section>
 </template>

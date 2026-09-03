@@ -64,9 +64,12 @@ export type ConfigRelease = {
   createdAt: string;
 };
 
-const adminPage = <T>(path: string) => request<PageResponse<T>>(`${path}?page=1&pageSize=100`);
+const adminPage = <T>(path: string, params: { page?: number; pageSize?: number } = {}) =>
+  request<PageResponse<T>>(`${path}?${new URLSearchParams({ page: String(params.page || 1), pageSize: String(params.pageSize || 20) })}`);
+const configPage = (params: { page?: number; pageSize?: number } = {}) =>
+  new URLSearchParams({ p: String(params.page || 1), s: String(params.pageSize || 20) });
 
-export const getChannels = () => adminPage<Channel>("/admin/v1/channels");
+export const getChannels = (params: { page?: number; pageSize?: number } = {}) => adminPage<Channel>("/admin/v1/channels", params);
 export const createChannel = (payload: {
   channelId: string;
   name: string;
@@ -85,7 +88,7 @@ export const changeChannelStatus = (channelId: string, status: string) =>
     body: JSON.stringify({ status }),
   });
 
-export const getRoutingRules = () => request<PageResponse<RoutingRule>>("/admin/v1/routing-rules?p=1&s=100");
+export const getRoutingRules = (params: { page?: number; pageSize?: number } = {}) => request<PageResponse<RoutingRule>>(`/admin/v1/routing-rules?${configPage(params)}`);
 export const createRoutingRule = (payload: Record<string, unknown>) =>
   request<void>("/admin/v1/routing-rules", { method: "POST", body: JSON.stringify(payload) });
 export const changeRoutingRuleStatus = (ruleId: string, status: string) =>
@@ -94,7 +97,7 @@ export const changeRoutingRuleStatus = (ruleId: string, status: string) =>
     body: JSON.stringify({ status }),
   });
 
-export const getPricingRules = () => request<PageResponse<PricingRule>>("/admin/v1/pricing-rules?p=1&s=100");
+export const getPricingRules = (params: { page?: number; pageSize?: number } = {}) => request<PageResponse<PricingRule>>(`/admin/v1/pricing-rules?${configPage(params)}`);
 export const createPricingRule = (payload: Record<string, unknown>) =>
   request<void>("/admin/v1/pricing-rules", { method: "POST", body: JSON.stringify(payload) });
 export const changePricingRuleStatus = (ruleId: string, status: string) =>
@@ -103,7 +106,7 @@ export const changePricingRuleStatus = (ruleId: string, status: string) =>
     body: JSON.stringify({ status }),
   });
 
-export const getRiskPolicies = () => request<PageResponse<RiskPolicy>>("/admin/v1/risk-policies?p=1&s=100");
+export const getRiskPolicies = (params: { page?: number; pageSize?: number } = {}) => request<PageResponse<RiskPolicy>>(`/admin/v1/risk-policies?${configPage(params)}`);
 export const createRiskPolicy = (payload: Record<string, unknown>) =>
   request<void>("/admin/v1/risk-policies", { method: "POST", body: JSON.stringify(payload) });
 export const changeRiskPolicyStatus = (policyId: string, status: string) =>
@@ -112,7 +115,7 @@ export const changeRiskPolicyStatus = (policyId: string, status: string) =>
     body: JSON.stringify({ status }),
   });
 
-export const getReleases = () => request<PageResponse<ConfigRelease>>("/admin/v1/config-releases?p=1&s=100");
+export const getReleases = (params: { page?: number; pageSize?: number } = {}) => request<PageResponse<ConfigRelease>>(`/admin/v1/config-releases?${configPage(params)}`);
 export const createRelease = (configuration: Record<string, unknown>, reason: string) =>
   request<ConfigRelease>("/admin/v1/config-releases", {
     method: "POST",

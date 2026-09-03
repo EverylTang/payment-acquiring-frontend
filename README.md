@@ -7,7 +7,6 @@
 - Vue 3
 - TypeScript
 - Vite
-- Vue Router
 - Lucide Vue
 
 ## 目录
@@ -22,7 +21,7 @@ payment-acquiring-frontend/
 ├── vite.config.ts
 ├── package.json
 ├── package-lock.json
-├── .env.example
+├── tsconfig.json
 └── .gitignore
 ```
 

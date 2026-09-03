@@ -1,13 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import {
   Activity,
+  Check,
+  ChevronDown,
   CircleDollarSign,
+  KeyRound,
   LayoutDashboard,
   Layers3,
+  Languages,
   Link,
   LoaderCircle,
+  LogOut,
   Network,
+  Palette,
   RefreshCw,
   Search,
   Settings2,
@@ -15,17 +21,20 @@ import {
   Store,
   Users,
   UsersRound,
+  UserRound,
   WalletCards,
   XCircle,
 } from "lucide-vue-next";
-import { bindMerchantProduct, changeMerchantProductStatus, changeMerchantStatus, createMerchant, getMerchant, getMerchantCallback, getMerchantContacts, getMerchantCredentials, getMerchantProfile, getMerchantProducts, getMerchants, revokeMerchantCredential, rotateMerchantCredential, updateMerchant, updateMerchantProduct, type Merchant, type MerchantCallback, type MerchantContact, type MerchantCredential, type MerchantProduct, type MerchantProfile } from "./modules/merchant/api";
-import { changeProductStatus, createProduct, getProductCapabilities, getProducts, updateProduct, type Product, type ProductCapability } from "./modules/product/api";
-import { createUser, getRoles, getUsers, type AdminUser } from "./modules/user/api";
-import { getPermissionCatalog, getRolePermissions, updateRolePermissions, type AdminRole, type PermissionCatalog } from "./modules/permission/api";
+import { bindMerchantProduct, changeMerchantProductStatus, changeMerchantStatus, createMerchant, getMerchant, getMerchantCallback, getMerchantContacts, getMerchantCredentials, getMerchantProfile, getMerchantProducts, getMerchants, updateMerchant, updateMerchantProduct, type Merchant, type MerchantCallback, type MerchantContact, type MerchantCredential, type MerchantProduct, type MerchantProfile } from "./modules/merchant/api";
+import { getProducts, type Product } from "./modules/product/api";
+import { getRoles, getUsers, type AdminUser } from "./modules/user/api";
+import { getPermissionCatalog, getRolePermissions, type AdminRole, type PermissionCatalog } from "./modules/permission/api";
 import { callbackOrder, cancelOrder, cancelPaymentAttempt, createOrder, createPaymentAttempt, getOrder, getOrderHealth, getOrderPage, getOrderStatistics, queryPaymentAttempt, retryPaymentAttempt, type CreateOrderRequest, type Order, type OrderPage, type PaymentAttempt } from "./modules/order/api";
 import { getChannelHealth, getOverview, getSnapshot, type DashboardOverview } from "./modules/dashboard/api";
 import { getAdminList, type AdminRecord } from "./modules/operations/api";
 import { authState, hasPermission, signOut } from "./auth";
+import { changePassword } from "./modules/auth/api";
+import { preferences, setLocale, setTheme, type AppLocale, type AppTheme } from "./preferences";
 import MerchantDetailView from "./modules/merchant/MerchantDetailView.vue";
 import UserManagementView from "./modules/user/UserManagementView.vue";
 import ProductManagementView from "./modules/product/ProductManagementView.vue";
@@ -34,13 +43,19 @@ import RefundView from "./modules/refund/RefundView.vue";
 import OperationsView from "./modules/operations/OperationsView.vue";
 import ConfigurationCenterView from "./modules/configuration/ConfigurationCenterView.vue";
 import MenuManagementView from "./modules/menu/MenuManagementView.vue";
+import AppDrawer from "./components/AppDrawer.vue";
 
 const active = ref("总览");
 const busy = ref(false);
 const notice = ref("");
+const accountMenuOpen = ref(false);
+const accountDrawer = ref<"password" | null>(null);
+const passwordSaving = ref(false);
+const passwordForm = ref({ currentPassword: "", newPassword: "", confirmPassword: "" });
 const queryId = ref("");
 const selectedOrder = ref<Order | null>(null);
 const selectedAttempt = ref<PaymentAttempt | null>(null);
+const orderDrawer = ref<"create" | "detail" | null>(null);
 const orderForm = ref<CreateOrderRequest>({
   merchantId: "merchant-demo",
   merchantOrderNo: `web-${Date.now()}`,
@@ -61,18 +76,12 @@ const merchantCallback = ref<MerchantCallback | null>(null);
 const merchantCredentials = ref<MerchantCredential[]>([]);
 const products = ref<Product[]>([]);
 const productPage = ref({ page: 1, pageSize: 20, total: 0 });
-const capabilities = ref<ProductCapability[]>([]);
 const editingMerchant = ref<Merchant | null>(null);
-const editingProduct = ref<Product | null>(null);
 const merchantForm = ref({
   merchantId: "",
   name: "",
   settlementCurrency: "USD",
 });
-const productForm = ref({ productCode: "", name: "" });
-const rolesPermissions = ref<
-  Record<string, { menuCodes: string[]; permissionCodes: string[] }>
->({});
 const permissionCatalog = ref<PermissionCatalog | null>(null);
 const selectedRole = ref("ADMIN");
 const selectedMenuCodes = ref<string[]>([]);
@@ -82,12 +91,6 @@ const merchantProductPage = ref({ page: 1, pageSize: 20, total: 0 });
 const editingMerchantProduct = ref<MerchantProduct | null>(null);
 const users = ref<AdminUser[]>([]);
 const roles = ref<AdminRole[]>([]);
-const userForm = ref({
-  username: "",
-  password: "",
-  displayName: "",
-  roles: "OPS",
-});
 const bindingForm = ref({
   merchantId: "merchant-demo",
   productCode: "CARD-US-USD",
@@ -122,7 +125,19 @@ const iconMap = {
   Users,
   UsersRound,
 };
-type NavigationItem = { label: string; page: string; icon: typeof Store };
+type NavigationItem = {
+  code: string;
+  parentId: number;
+  label: string;
+  page: string;
+  icon: typeof Store;
+};
+type NavigationDirectory = {
+  code: string;
+  label: string;
+  icon: typeof Store;
+};
+type NavigationGroup = { key: string; directory: NavigationDirectory | null; items: NavigationItem[] };
 const pageByComponent: Record<string, string> = {
   dashboard: "总览",
   orders: "订单与支付",
@@ -142,35 +157,158 @@ const pageByComponent: Record<string, string> = {
   "system:role": "角色权限",
   menus: "菜单管理",
   "system:menu": "菜单管理",
+  operations: "运营处置",
 };
-const menu = computed(() => {
-  const accessMenu = (authState.access?.menus || [])
-    .filter((item) => item.menuType === "PAGE")
-    .map((item) => ({
-      label: item.menuName,
-      page: pageByComponent[item.componentKey || item.menuCode] || item.menuName,
-      icon: iconMap[item.icon as keyof typeof iconMap] || Store,
-    }));
-  const isAdmin = authState.user?.roles.includes("ADMIN");
-  const visible = accessMenu.length ? accessMenu : fallbackMenu;
-  if (!isAdmin) return visible;
-  const pages = new Set(visible.map((item) => item.page));
-  return [...visible, ...fallbackMenu.filter((item) => !pages.has(item.page))];
+const englishMenuLabels: Record<string, string> = {
+  dashboard: "Overview",
+  trade: "Payments",
+  merchant: "Merchants",
+  product: "Products",
+  "merchant-product": "Merchant products",
+  routing: "Routing & channels",
+  pricing: "Pricing & settlement",
+  risk: "Risk workspace",
+  system: "System",
+  "system:user": "Users",
+  "system:role": "Roles & permissions",
+  "system:menu": "Menu management",
+  operations: "Operations",
+};
+const englishPageLabels: Record<string, string> = {
+  总览: "Overview",
+  订单与支付: "Payments",
+  商户管理: "Merchants",
+  产品管理: "Products",
+  商户产品: "Merchant products",
+  路由与渠道: "Routing & channels",
+  费率与结算: "Pricing & settlement",
+  风控工作台: "Risk workspace",
+  用户管理: "Users",
+  角色权限: "Roles & permissions",
+  菜单管理: "Menu management",
+  运营处置: "Operations",
+  商户详情: "Merchant details",
+};
+const displayMenuLabel = (code: string, label: string) =>
+  preferences.locale === "en-US" ? englishMenuLabels[code] || englishPageLabels[label] || label : label;
+const displayPageLabel = (label: string) =>
+  preferences.locale === "en-US" ? englishPageLabels[label] || label : label;
+const accountCopy = computed(() =>
+  preferences.locale === "en-US"
+    ? {
+        account: "Account",
+        changePassword: "Change password",
+        language: "Language",
+        appearance: "Appearance",
+        signOut: "Sign out",
+        passwordTitle: "Change password",
+        passwordDescription: "ACCOUNT SECURITY",
+        currentPassword: "Current password",
+        newPassword: "New password",
+        confirmPassword: "Confirm new password",
+        savePassword: "Update password",
+        passwordRule: "Use 12 to 128 characters.",
+      }
+    : {
+        account: "账户设置",
+        changePassword: "修改密码",
+        language: "语言",
+        appearance: "界面颜色",
+        signOut: "退出登录",
+        passwordTitle: "修改密码",
+        passwordDescription: "账户安全",
+        currentPassword: "当前密码",
+        newPassword: "新密码",
+        confirmPassword: "确认新密码",
+        savePassword: "保存新密码",
+        passwordRule: "密码长度为 12 至 128 位。",
+      },
+);
+const accountInitial = computed(() => authState.user?.displayName?.slice(0, 1) || "U");
+const openPasswordDrawer = () => {
+  accountMenuOpen.value = false;
+  passwordForm.value = { currentPassword: "", newPassword: "", confirmPassword: "" };
+  accountDrawer.value = "password";
+};
+const savePassword = async () => {
+  if (passwordForm.value.newPassword.length < 12) {
+    notice.value = preferences.locale === "en-US" ? "New password must be at least 12 characters." : "新密码至少需要 12 位。";
+    return;
+  }
+  if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
+    notice.value = preferences.locale === "en-US" ? "New passwords do not match." : "两次输入的新密码不一致。";
+    return;
+  }
+  passwordSaving.value = true;
+  notice.value = "";
+  try {
+    await changePassword(passwordForm.value.currentPassword, passwordForm.value.newPassword);
+    passwordForm.value = { currentPassword: "", newPassword: "", confirmPassword: "" };
+    accountDrawer.value = null;
+    notice.value = preferences.locale === "en-US" ? "Password updated." : "密码已修改，请妥善保管新密码。";
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "密码修改失败";
+  } finally {
+    passwordSaving.value = false;
+  }
+};
+const selectLocale = (locale: AppLocale) => setLocale(locale);
+const selectTheme = (theme: AppTheme) => setTheme(theme);
+const handleSignOut = () => {
+  accountMenuOpen.value = false;
+  signOut();
+};
+const menuGroups = computed<NavigationGroup[]>(() => {
+  const items = authState.access?.menus || [];
+  const toNav = (item: (typeof items)[number]): NavigationItem => ({
+    code: item.menuCode,
+    parentId: item.parentId,
+    label: item.menuName,
+    page: pageByComponent[item.componentKey || item.menuCode] || item.menuName,
+    icon: iconMap[item.icon as keyof typeof iconMap] || Store,
+  });
+  const pages = items.filter((item) => item.menuType === "PAGE").map(toNav);
+  const directories = items.filter((item) => item.menuType === "DIRECTORY");
+  const groups: NavigationGroup[] = [];
+  const grouped = new Set<string>();
+  for (const dir of directories) {
+    const children = pages.filter((p) => p.parentId === dir.id);
+    if (children.length) {
+      children.forEach((c) => grouped.add(c.code));
+      groups.push({
+        key: dir.menuCode,
+        directory: {
+          code: dir.menuCode,
+          label: dir.menuName,
+          icon: iconMap[dir.icon as keyof typeof iconMap] || Settings2,
+        },
+        items: children,
+      });
+    }
+  }
+  const top = pages.filter((p) => !grouped.has(p.code));
+  if (top.length) groups.unshift({ key: "main", directory: null, items: top });
+  return groups;
 });
-const fallbackMenu: NavigationItem[] = [
-  { label: "总览", page: "总览", icon: LayoutDashboard },
-  { label: "订单与支付", page: "订单与支付", icon: WalletCards },
-  { label: "商户管理", page: "商户管理", icon: Store },
-  { label: "产品管理", page: "产品管理", icon: Layers3 },
-  { label: "商户产品", page: "商户产品", icon: Link },
-  { label: "路由与渠道", page: "路由与渠道", icon: Network },
-  { label: "费率与结算", page: "费率与结算", icon: CircleDollarSign },
-  { label: "风控工作台", page: "风控工作台", icon: ShieldCheck },
-  { label: "用户管理", page: "用户管理", icon: Users },
-  { label: "角色权限", page: "角色权限", icon: UsersRound },
-  { label: "菜单管理", page: "菜单管理", icon: Settings2 },
-  { label: "运营处置", page: "运营处置", icon: ShieldCheck },
-];
+const expandedMenuGroups = ref<string[]>([]);
+const isMenuGroupExpanded = (key: string) => expandedMenuGroups.value.includes(key);
+const toggleMenuGroup = (key: string) => {
+  expandedMenuGroups.value = isMenuGroupExpanded(key)
+    ? expandedMenuGroups.value.filter((value) => value !== key)
+    : [...expandedMenuGroups.value, key];
+};
+watch(
+  [menuGroups, active],
+  ([groups, currentPage]) => {
+    const activeGroup = groups.find(
+      (group) => group.directory && group.items.some((item) => item.page === currentPage),
+    );
+    if (activeGroup && !isMenuGroupExpanded(activeGroup.key)) {
+      expandedMenuGroups.value = [...expandedMenuGroups.value, activeGroup.key];
+    }
+  },
+  { immediate: true },
+);
 const resourceMap: Record<string, string> = {
   商户管理: "merchants",
   产品管理: "products",
@@ -258,7 +396,7 @@ const loadRolePermissions = async () => {
     ]);
     roles.value = roleList.items;
     permissionCatalog.value = catalog;
-    await selectRole(selectedRole.value || roleList[0]?.roleCode);
+    await selectRole(selectedRole.value || roleList.items[0]?.roleCode);
   } catch (error) {
     notice.value = error instanceof Error ? error.message : "角色权限加载失败";
   } finally {
@@ -270,17 +408,6 @@ const selectRole = async (roleCode: string) => {
   const permissions = await getRolePermissions(roleCode);
   selectedMenuCodes.value = permissions.menuCodes;
   selectedPermissionCodes.value = permissions.permissionCodes;
-};
-const saveRolePermissions = async () => {
-  const result = await run(
-    () =>
-      updateRolePermissions(selectedRole.value, {
-        menuCodes: selectedMenuCodes.value,
-        permissionCodes: selectedPermissionCodes.value,
-      }),
-    "角色权限已保存",
-  );
-  if (result) rolesPermissions.value[selectedRole.value] = result;
 };
 const loadMerchants = async (page = merchantPage.value.page) => {
   listLoading.value = true;
@@ -324,31 +451,6 @@ const openMerchantDetail = async (merchant: Merchant) => {
   } finally {
     listLoading.value = false;
   }
-};
-const rotateCredential = async (type: "API" | "WEBHOOK") => {
-  if (!selectedMerchant.value) return;
-  const result = await run(
-    () => rotateMerchantCredential(selectedMerchant.value!.merchantId, type),
-    "凭证已轮换，请立即保存新密钥",
-  );
-  if (result) {
-    notice.value = `${notice.value} 新密钥：${result.secret}`;
-    merchantCredentials.value = await getMerchantCredentials(
-      selectedMerchant.value.merchantId,
-    );
-  }
-};
-const revokeCredential = async (credential: MerchantCredential) => {
-  if (!selectedMerchant.value) return;
-  const result = await run(
-    () =>
-      revokeMerchantCredential(
-        selectedMerchant.value!.merchantId,
-        credential.credentialId,
-      ),
-    "凭证已撤销",
-  );
-  if (result === undefined) credential.status = "REVOKED";
 };
 const saveMerchant = async () => {
   const result = editingMerchant.value
@@ -404,40 +506,6 @@ const loadProducts = async (page = productPage.value.page) => {
     listLoading.value = false;
   }
 };
-const saveProduct = async () => {
-  const result = editingProduct.value
-    ? await run(
-        () =>
-          updateProduct(editingProduct.value!.productCode, {
-            name: productForm.value.name,
-          }),
-        "产品已更新",
-      )
-    : await run(() => createProduct(productForm.value), "产品创建成功");
-  if (result) {
-    editingProduct.value = null;
-    productForm.value = { productCode: "", name: "" };
-    await loadProducts();
-  }
-};
-const editProduct = async (product: Product) => {
-  editingProduct.value = product;
-  productForm.value = { productCode: product.productCode, name: product.name };
-  capabilities.value = (
-    await getProductCapabilities(product.productCode)
-  ).items;
-};
-const toggleProduct = async (product: Product) => {
-  const result = await run(
-    () =>
-      changeProductStatus(
-        product.productCode,
-        product.status === "ACTIVE" ? "DISABLED" : "ACTIVE",
-      ),
-    "产品状态已更新",
-  );
-  if (result) Object.assign(product, result);
-};
 const loadUsers = async () => {
   listLoading.value = true;
   try {
@@ -448,28 +516,6 @@ const loadUsers = async () => {
     notice.value = error instanceof Error ? error.message : "用户加载失败";
   } finally {
     listLoading.value = false;
-  }
-};
-const createNewUser = async () => {
-  const result = await run(
-    () =>
-      createUser({
-        ...userForm.value,
-        roles: userForm.value.roles
-          .split(",")
-          .map((role) => role.trim())
-          .filter(Boolean),
-      }),
-    "用户创建成功",
-  );
-  if (result) {
-    users.value = [result, ...users.value];
-    userForm.value = {
-      username: "",
-      password: "",
-      displayName: "",
-      roles: "OPS",
-    };
   }
 };
 const loadMerchantProducts = async (page = merchantProductPage.value.page) => {
@@ -552,10 +598,10 @@ const loadOrders = async (page = 1) => {
   }
 };
 const findOrder = async () => {
-  if (queryId.value.trim()) {
-    selectedOrder.value = await run(() => getOrder(queryId.value.trim()));
-    selectedAttempt.value = null;
-  }
+  if (!queryId.value.trim()) return;
+  const result = await run(() => getOrder(queryId.value.trim()));
+  if (result) selectedOrder.value = result;
+  selectedAttempt.value = null;
 };
 const createNewOrder = async () => {
   const key = crypto.randomUUID();
@@ -567,7 +613,14 @@ const createNewOrder = async () => {
     selectedOrder.value = result;
     selectedAttempt.value = null;
     queryId.value = result.orderId;
+    orderDrawer.value = "detail";
   }
+};
+const inspectOrder = (order: Order) => {
+  selectedOrder.value = order;
+  selectedAttempt.value = null;
+  queryId.value = order.orderId;
+  orderDrawer.value = "detail";
 };
 const refreshOrderStatus = async () => {
   if (!selectedOrder.value) return;
@@ -634,29 +687,86 @@ onMounted(async () => {
         <span class="brand-mark">P</span>
         <div><strong>PAYMENT OS</strong><small>ACQUIRING CONTROL</small></div>
       </div>
-      <div class="workspace">
-        <span class="eyebrow">WORKSPACE</span><strong>运营控制台</strong
-        ><small>Production / Asia Pacific</small>
-      </div>
       <nav>
-        <button
-          v-for="item in menu"
-          :key="item.page"
-          :class="{ active: active === item.page }"
-          @click="loadPage(item.page)"
-        >
-          <component :is="item.icon" :size="17" />{{ item.label }}
-        </button>
-      </nav>
-      <button class="operator" title="退出登录" @click="signOut">
-        <span class="avatar">{{
-          authState.user?.displayName.slice(0, 1)
-        }}</span>
-        <div>
-          <strong>{{ authState.user?.displayName }}</strong
-          ><small>{{ authState.user?.roles.join(" · ") }}</small>
+        <div v-for="group in menuGroups" :key="group.key" class="nav-group">
+          <template v-if="group.directory">
+            <button
+              class="nav-directory"
+              :class="{ active: group.items.some((item) => item.page === active) }"
+              :aria-expanded="isMenuGroupExpanded(group.key)"
+              @click="toggleMenuGroup(group.key)"
+            >
+              <component :is="group.directory.icon" :size="17" />
+              <span>{{ displayMenuLabel(group.directory.code, group.directory.label) }}</span>
+              <ChevronDown class="nav-chevron" :size="16" :class="{ open: isMenuGroupExpanded(group.key) }" />
+            </button>
+            <div v-show="isMenuGroupExpanded(group.key)" class="nav-children">
+              <button
+                v-for="item in group.items"
+                :key="item.page"
+                class="nav-child"
+                :class="{ active: active === item.page }"
+                @click="loadPage(item.page)"
+              >
+                <component :is="item.icon" :size="16" /><span>{{ displayMenuLabel(item.code, item.label) }}</span>
+              </button>
+            </div>
+          </template>
+          <template v-else>
+            <button
+              v-for="item in group.items"
+              :key="item.page"
+              :class="{ active: active === item.page }"
+              @click="loadPage(item.page)"
+            >
+              <component :is="item.icon" :size="17" /><span>{{ displayMenuLabel(item.code, item.label) }}</span>
+            </button>
+          </template>
         </div>
-      </button>
+      </nav>
+      <div class="account-area">
+        <button
+          class="operator"
+          :aria-expanded="accountMenuOpen"
+          :title="accountCopy.account"
+          @click="accountMenuOpen = !accountMenuOpen"
+        >
+          <span class="account-avatar"><UserRound :size="16" /></span>
+          <span class="operator-info">
+            <strong>{{ authState.user?.displayName }}</strong>
+            <small>{{ authState.user?.roles.join(" · ") }} · {{ authState.user?.username }}</small>
+          </span>
+          <ChevronDown class="account-chevron" :size="16" :class="{ open: accountMenuOpen }" />
+        </button>
+        <div v-if="accountMenuOpen" class="account-menu" role="menu">
+          <div class="account-summary">
+            <span class="account-avatar"><UserRound :size="16" /></span>
+            <div><strong>{{ authState.user?.displayName }}</strong><small>{{ authState.user?.username }}</small></div>
+          </div>
+          <button class="account-action" role="menuitem" @click="openPasswordDrawer">
+            <KeyRound :size="16" /><span>{{ accountCopy.changePassword }}</span>
+          </button>
+          <div class="account-setting">
+            <span class="account-setting-label"><Languages :size="16" />{{ accountCopy.language }}</span>
+            <div class="account-segmented" :aria-label="accountCopy.language">
+              <button :class="{ active: preferences.locale === 'zh-CN' }" title="简体中文" @click="selectLocale('zh-CN')">中</button>
+              <button :class="{ active: preferences.locale === 'en-US' }" title="English" @click="selectLocale('en-US')">EN</button>
+            </div>
+          </div>
+          <div class="account-setting">
+            <span class="account-setting-label"><Palette :size="16" />{{ accountCopy.appearance }}</span>
+            <div class="theme-swatches" :aria-label="accountCopy.appearance">
+              <button class="theme-swatch indigo" :class="{ active: preferences.theme === 'indigo' }" title="Indigo" @click="selectTheme('indigo')"><Check v-if="preferences.theme === 'indigo'" :size="13" /></button>
+              <button class="theme-swatch blue" :class="{ active: preferences.theme === 'blue' }" title="Blue" @click="selectTheme('blue')"><Check v-if="preferences.theme === 'blue'" :size="13" /></button>
+              <button class="theme-swatch emerald" :class="{ active: preferences.theme === 'emerald' }" title="Emerald" @click="selectTheme('emerald')"><Check v-if="preferences.theme === 'emerald'" :size="13" /></button>
+              <button class="theme-swatch midnight" :class="{ active: preferences.theme === 'midnight' }" :title="preferences.locale === 'en-US' ? 'Tech dark' : '科技暗色'" @click="selectTheme('midnight')"><Check v-if="preferences.theme === 'midnight'" :size="13" /></button>
+            </div>
+          </div>
+          <button class="account-action account-signout" role="menuitem" @click="handleSignOut">
+            <LogOut :size="16" /><span>{{ accountCopy.signOut }}</span>
+          </button>
+        </div>
+      </div>
     </aside>
     <main>
       <MerchantDetailView
@@ -670,8 +780,9 @@ onMounted(async () => {
       />
       <header>
         <div>
-          <span class="eyebrow">FRIDAY · 21 AUG 2026</span>
-          <h1>{{ active }}</h1>
+          <nav class="breadcrumb" aria-label="breadcrumb">
+            <span>{{ preferences.locale === "en-US" ? "Operations console" : "运营控制台" }}</span><i>/</i><b>{{ displayPageLabel(active) }}</b>
+          </nav>
         </div>
         <div class="header-actions">
           <span class="live"
@@ -679,45 +790,30 @@ onMounted(async () => {
             >{{ serviceOnline ? "交易服务正常" : "交易服务不可用" }}</span
           ><button class="icon-btn" title="刷新数据" @click="refresh">
             <RefreshCw :size="18" /></button
-          ><span class="avatar">JP</span>
+          ><span class="avatar">{{ accountInitial }}</span>
         </div>
       </header>
-      <div v-if="notice" class="notice">{{ notice }}</div>
       <template v-if="isOverview">
-        <section class="hero-row">
-          <div>
-            <p class="eyebrow">实时业务概览 / 累计数据</p>
-            <h2>交易脉搏，清晰可见。</h2>
-            <p class="subline">所有关键决策都已记录，所有资金流向都可追溯。</p>
-          </div>
-          <button class="outline-btn" :disabled="busy" @click="refresh">
-            <RefreshCw :class="{ spin: busy }" :size="16" /> 刷新数据
-          </button>
-        </section>
         <section class="metrics">
           <article>
-            <span>支付成功率</span
-            ><strong
-              >{{ overview?.paymentSuccessRate ?? "--"
-              }}<small>%</small></strong
-            ><em><Activity :size="15" />累计订单</em>
+            <div class="metric-head"><span>支付成功率</span><i class="metric-icon success"><Activity :size="16" /></i></div>
+            <strong>{{ overview?.paymentSuccessRate ?? "--" }}<small>%</small></strong>
+            <em>累计订单口径</em>
           </article>
           <article>
-            <span>订单名义金额</span
-            ><strong>{{
-              overview?.paymentVolume?.toLocaleString() ?? "--"
-            }}</strong
-            ><em>全币种累计</em>
+            <div class="metric-head"><span>订单名义金额</span><i class="metric-icon accent"><CircleDollarSign :size="16" /></i></div>
+            <strong>{{ overview?.paymentVolume?.toLocaleString() ?? "--" }}</strong>
+            <em>全币种累计</em>
           </article>
           <article>
-            <span>交易商户</span
-            ><strong>{{ overview?.activeMerchants ?? "--" }}</strong
-            ><em>历史去重</em>
+            <div class="metric-head"><span>交易商户</span><i class="metric-icon blue"><Store :size="16" /></i></div>
+            <strong>{{ overview?.activeMerchants ?? "--" }}</strong>
+            <em>历史去重</em>
           </article>
           <article>
-            <span>待发布配置</span
-            ><strong>{{ overview?.pendingReleases ?? "--" }}</strong
-            ><em>需要关注</em>
+            <div class="metric-head"><span>待发布配置</span><i class="metric-icon warning"><Settings2 :size="16" /></i></div>
+            <strong>{{ overview?.pendingReleases ?? "--" }}</strong>
+            <em>需要关注</em>
           </article>
         </section>
         <section class="content-grid">
@@ -781,11 +877,17 @@ onMounted(async () => {
         <div class="panel-title">
           <div>
             <span class="eyebrow">TRADE OPERATIONS</span>
-            <h3>订单查询与处置</h3>
+            <h3>订单列表</h3>
           </div>
-          <button class="outline-btn" @click="loadOrders(orderPage.page)">
-            <RefreshCw :size="16" />刷新订单
-          </button>
+          <div class="button-row">
+            <button class="outline-btn" @click="selectedOrder = null; orderDrawer = 'detail'">
+              <Search :size="16" />查询订单
+            </button>
+            <button class="primary-btn" @click="orderDrawer = 'create'">创建订单</button>
+            <button class="icon-btn" title="刷新订单" @click="loadOrders(orderPage.page)">
+              <RefreshCw :size="16" />
+            </button>
+          </div>
         </div>
         <div class="order-filters">
           <input
@@ -804,26 +906,26 @@ onMounted(async () => {
             <Search :size="16" />筛选
           </button>
         </div>
-        <div
-          v-if="!listLoading && orderPage.items.length"
-          class="record-list order-list"
-        >
-          <button
-            v-for="order in orderPage.items"
-            :key="order.orderId"
-            class="record-row"
-            @click="
-              selectedOrder = order;
-              queryId = order.orderId;
-              selectedAttempt = null;
-            "
-          >
-            <div>
-              <strong>{{ order.merchantOrderNo }}</strong
-              ><small>{{ order.orderId }} · {{ order.merchantId }}</small>
-            </div>
-            <b>{{ order.amount }} {{ order.currency }} · {{ order.status }}</b>
-          </button>
+        <div v-if="!listLoading && orderPage.items.length" class="table-wrap order-list">
+          <table class="data-table">
+            <thead>
+              <tr><th>商户订单号</th><th>订单 ID</th><th>商户</th><th class="num">金额</th><th>状态</th></tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="order in orderPage.items"
+                :key="order.orderId"
+                :class="{ selected: selectedOrder?.orderId === order.orderId }"
+                @click="inspectOrder(order)"
+              >
+                <td><strong>{{ order.merchantOrderNo }}</strong></td>
+                <td class="mono">{{ order.orderId }}</td>
+                <td class="mono">{{ order.merchantId }}</td>
+                <td class="num mono">{{ order.amount }} {{ order.currency }}</td>
+                <td><span class="status-badge" :class="'st-' + order.status.toLowerCase()">{{ order.status }}</span></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
         <div v-else-if="listLoading" class="empty">
           <LoaderCircle class="spin" :size="22" />加载中…
@@ -852,91 +954,66 @@ onMounted(async () => {
             下一页
           </button>
         </div>
-        <div class="order-create">
-          <span class="eyebrow">CREATE PAYMENT ORDER</span>
-          <div class="form-grid">
-            <input v-model="orderForm.merchantId" placeholder="商户 ID" /><input
-              v-model="orderForm.merchantOrderNo"
-              placeholder="商户订单号"
-            /><input
-              v-model="orderForm.productCode"
-              placeholder="产品编码"
-            /><input
-              v-model="orderForm.paymentMethod"
-              placeholder="支付方式"
-            /><input v-model="orderForm.country" placeholder="国家" /><input
-              v-model="orderForm.currency"
-              placeholder="币种"
-            /><input
-              v-model.number="orderForm.amount"
-              type="number"
-              min="0.01"
-              step="0.01"
-              placeholder="金额"
-            />
-          </div>
-          <button class="primary-btn" :disabled="busy" @click="createNewOrder">
-            创建真实订单
-          </button>
-        </div>
-        <div class="search-row">
-          <input
-            v-model="queryId"
-            placeholder="输入订单 ID"
-            @keyup.enter="findOrder"
-          /><button class="primary-btn" @click="findOrder">
-            <Search :size="16" />查询订单
-          </button>
-        </div>
-        <div v-if="selectedOrder" class="order-card">
-          <div>
-            <span class="eyebrow">{{ selectedOrder.orderId }}</span>
-            <h3>{{ selectedOrder.merchantOrderNo }}</h3>
-            <p>
-              {{ selectedOrder.amount }} {{ selectedOrder.currency }} ·
-              {{ selectedOrder.status }}
-            </p>
-            <small
-              >创建时间：{{ selectedOrder.createdAt || "--" }} · 过期时间：{{
-                selectedOrder.expireAt || "--"
-              }}</small
-            >
-          </div>
-          <div class="button-row">
-            <button class="outline-btn" @click="refreshOrderStatus">
-              <RefreshCw :size="16" />刷新状态</button
-            ><button
-              class="danger-btn"
-              @click="mutateOrder('cancel')"
-              :disabled="
-                ['SUCCESS', 'FAILED', 'CANCELED'].includes(selectedOrder.status)
-              "
-            >
-              <XCircle :size="16" />取消订单</button
-            ><button class="primary-btn" @click="mutateOrder('success')">
-              回调成功</button
-            ><button class="outline-btn" @click="mutateOrder('failed')">
-              回调失败
-            </button>
-          </div>
-          <div class="attempt-panel">
-            <div>
-              <span class="eyebrow">PAYMENT ATTEMPT</span>
-              <strong>{{ selectedAttempt ? `第 ${selectedAttempt.attemptNo} 次 · ${selectedAttempt.status}` : "尚未创建支付尝试" }}</strong>
-              <small v-if="selectedAttempt">{{ selectedAttempt.channelId }} · {{ selectedAttempt.channelOrderId }}</small>
+        <AppDrawer
+          v-if="orderDrawer"
+          :title="orderDrawer === 'create' ? '创建支付订单' : '订单详情与处置'"
+          :description="orderDrawer === 'create' ? 'PAYMENT ORDER' : 'ORDER OPERATIONS'"
+          @close="orderDrawer = null"
+        >
+          <template v-if="orderDrawer === 'create'">
+            <div class="drawer-section">
+              <div class="form-grid drawer-form-grid">
+                <input v-model="orderForm.merchantId" placeholder="商户 ID" />
+                <input v-model="orderForm.merchantOrderNo" placeholder="商户订单号" />
+                <input v-model="orderForm.productCode" placeholder="产品编码" />
+                <input v-model="orderForm.paymentMethod" placeholder="支付方式" />
+                <input v-model="orderForm.country" placeholder="国家" />
+                <input v-model="orderForm.currency" placeholder="币种" />
+                <input v-model.number="orderForm.amount" type="number" min="0.01" step="0.01" placeholder="金额" />
+              </div>
+              <button class="primary-btn drawer-submit" :disabled="busy" @click="createNewOrder">创建真实订单</button>
             </div>
-            <div class="button-row">
-              <button class="outline-btn" @click="createAttempt">创建尝试</button>
-              <template v-if="selectedAttempt"><button class="outline-btn" @click="mutateAttempt('query')">查询渠道</button><button class="outline-btn" @click="mutateAttempt('retry')">重试</button><button class="danger-btn" @click="mutateAttempt('cancel')">取消尝试</button></template>
+          </template>
+          <template v-else>
+            <div v-if="!selectedOrder" class="drawer-section">
+              <p class="drawer-copy">输入订单 ID 后可查看状态、支付尝试和退款信息。</p>
+              <div class="search-row drawer-search">
+                <input v-model="queryId" placeholder="输入订单 ID" autofocus @keyup.enter="findOrder" />
+                <button class="primary-btn" @click="findOrder"><Search :size="16" />查询</button>
+              </div>
             </div>
-          </div>
-          <RefundView
-            v-if="selectedOrder.status === 'SUCCESS'"
-            :order="selectedOrder"
-            @notice="notice = $event"
-          />
-        </div>
-        <p v-else class="empty">可创建订单，或输入真实订单 ID 后查询详情。</p>
+            <template v-else>
+              <div class="drawer-summary">
+                <span class="eyebrow">{{ selectedOrder.orderId }}</span>
+                <h4>{{ selectedOrder.merchantOrderNo }}</h4>
+                <p>{{ selectedOrder.amount }} {{ selectedOrder.currency }}</p>
+                <span class="status-badge" :class="'st-' + selectedOrder.status.toLowerCase()">{{ selectedOrder.status }}</span>
+                <small>创建时间：{{ selectedOrder.createdAt || "--" }} · 过期时间：{{ selectedOrder.expireAt || "--" }}</small>
+              </div>
+              <div class="drawer-section">
+                <h4>订单处置</h4>
+                <div class="button-row drawer-actions">
+                  <button class="outline-btn" @click="refreshOrderStatus"><RefreshCw :size="16" />刷新状态</button>
+                  <button class="danger-btn" :disabled="['SUCCESS', 'FAILED', 'CANCELED'].includes(selectedOrder.status)" @click="mutateOrder('cancel')"><XCircle :size="16" />取消订单</button>
+                  <button class="primary-btn" @click="mutateOrder('success')">回调成功</button>
+                  <button class="outline-btn" @click="mutateOrder('failed')">回调失败</button>
+                </div>
+              </div>
+              <div class="drawer-section attempt-panel">
+                <div>
+                  <span class="eyebrow">PAYMENT ATTEMPT</span>
+                  <strong>{{ selectedAttempt ? `第 ${selectedAttempt.attemptNo} 次 · ${selectedAttempt.status}` : "尚未创建支付尝试" }}</strong>
+                  <small v-if="selectedAttempt">{{ selectedAttempt.channelId }} · {{ selectedAttempt.channelOrderId }}</small>
+                </div>
+                <div class="button-row drawer-actions">
+                  <button class="outline-btn" @click="createAttempt">创建尝试</button>
+                  <template v-if="selectedAttempt"><button class="outline-btn" @click="mutateAttempt('query')">查询渠道</button><button class="outline-btn" @click="mutateAttempt('retry')">重试</button><button class="danger-btn" @click="mutateAttempt('cancel')">取消尝试</button></template>
+                </div>
+              </div>
+              <RefundView v-if="selectedOrder.status === 'SUCCESS'" :order="selectedOrder" @notice="notice = $event" />
+            </template>
+          </template>
+        </AppDrawer>
       </section>
       <PermissionManagementView
         v-else-if="active === '角色权限'"
@@ -1003,7 +1080,7 @@ onMounted(async () => {
             <span class="eyebrow">MERCHANTS</span>
             <h3>商户管理</h3>
           </div>
-          <button class="outline-btn" @click="loadMerchants">刷新</button>
+          <button class="outline-btn" @click="loadMerchants()">刷新</button>
         </div>
         <div class="form-grid">
           <input
@@ -1027,34 +1104,36 @@ onMounted(async () => {
           </button>
         </div>
         <div v-if="listLoading" class="empty">加载中…</div>
-        <div v-else class="record-list">
-          <div
-            v-for="merchant in merchants"
-            :key="merchant.merchantId"
-            class="record-row"
-          >
-            <div>
-              <strong>{{ merchant.name }}</strong
-              ><small
-                >{{ merchant.merchantId }} ·
-                {{ merchant.settlementCurrency }}</small
-              >
-            </div>
-            <span class="status-badge">{{ merchant.status }}</span
-            ><button
-              v-if="hasPermission('merchant:update')"
-              class="outline-btn"
-              @click="editMerchant(merchant)"
-            >
-              编辑</button
-            ><button
-              v-if="hasPermission('merchant:status')"
-              class="outline-btn"
-              @click="toggleMerchant(merchant)"
-            >
-              {{ merchant.status === "ACTIVE" ? "停用" : "启用" }}
-            </button>
-          </div>
+        <div v-else class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr><th>商户名称</th><th>商户 ID</th><th>结算币种</th><th>状态</th><th class="actions">操作</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="merchant in merchants" :key="merchant.merchantId">
+                <td><strong>{{ merchant.name }}</strong></td>
+                <td class="mono">{{ merchant.merchantId }}</td>
+                <td class="mono">{{ merchant.settlementCurrency }}</td>
+                <td><span class="status-badge" :class="'st-' + merchant.status.toLowerCase()">{{ merchant.status }}</span></td>
+                <td class="actions">
+                  <button
+                    v-if="hasPermission('merchant:update')"
+                    class="outline-btn"
+                    @click="editMerchant(merchant)"
+                  >
+                    编辑
+                  </button>
+                  <button
+                    v-if="hasPermission('merchant:status')"
+                    class="outline-btn"
+                    @click="toggleMerchant(merchant)"
+                  >
+                    {{ merchant.status === "ACTIVE" ? "停用" : "启用" }}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
         <div v-if="merchantPage.total > merchantPage.pageSize" class="pagination"><button class="outline-btn" :disabled="merchantPage.page <= 1" @click="loadMerchants(merchantPage.page - 1)">上一页</button><span>第 {{ merchantPage.page }} / {{ Math.ceil(merchantPage.total / merchantPage.pageSize) }} 页，共 {{ merchantPage.total }} 个商户</span><button class="outline-btn" :disabled="merchantPage.page >= Math.ceil(merchantPage.total / merchantPage.pageSize)" @click="loadMerchants(merchantPage.page + 1)">下一页</button></div>
       </section>
@@ -1186,7 +1265,7 @@ onMounted(async () => {
             <span class="eyebrow">MERCHANT PRODUCT</span>
             <h3>商户产品绑定</h3>
           </div>
-          <button class="outline-btn" @click="loadMerchantProducts">
+          <button class="outline-btn" @click="loadMerchantProducts()">
             <RefreshCw :size="16" />刷新
           </button>
         </div>
@@ -1212,7 +1291,7 @@ onMounted(async () => {
               <strong>{{ item.merchantName }} · {{ item.productName }}</strong
               ><small>{{ item.merchantId }} / {{ item.productCode }}</small>
             </div>
-            <b>{{ item.status }}</b><div class="button-row"><button v-if="hasPermission('merchant-product:update')" class="outline-btn" @click="editMerchantProduct(item)">编辑</button><button v-if="hasPermission('merchant-product:status')" class="outline-btn" @click="toggleMerchantProduct(item)">{{ item.status === "ACTIVE" ? "停用" : "启用" }}</button></div>
+            <span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span><div class="button-row"><button v-if="hasPermission('merchant-product:update')" class="outline-btn" @click="editMerchantProduct(item)">编辑</button><button v-if="hasPermission('merchant-product:status')" class="outline-btn" @click="toggleMerchantProduct(item)">{{ item.status === "ACTIVE" ? "停用" : "启用" }}</button></div>
           </div>
         </div>
         <div v-if="merchantProductPage.total > merchantProductPage.pageSize" class="pagination"><button class="outline-btn" :disabled="merchantProductPage.page <= 1" @click="loadMerchantProducts(merchantProductPage.page - 1)">上一页</button><span>第 {{ merchantProductPage.page }} / {{ Math.ceil(merchantProductPage.total / merchantProductPage.pageSize) }} 页，共 {{ merchantProductPage.total }} 条绑定</span><button class="outline-btn" :disabled="merchantProductPage.page >= Math.ceil(merchantProductPage.total / merchantProductPage.pageSize)" @click="loadMerchantProducts(merchantProductPage.page + 1)">下一页</button></div>
@@ -1291,5 +1370,30 @@ onMounted(async () => {
         </div>
       </section>
     </main>
+    <AppDrawer
+      v-if="accountDrawer === 'password'"
+      :title="accountCopy.passwordTitle"
+      :description="accountCopy.passwordDescription"
+      @close="accountDrawer = null"
+    >
+      <form class="drawer-section password-form" @submit.prevent="savePassword">
+        <p class="drawer-copy">{{ accountCopy.passwordRule }}</p>
+        <label>
+          <span>{{ accountCopy.currentPassword }}</span>
+          <input v-model="passwordForm.currentPassword" type="password" autocomplete="current-password" required />
+        </label>
+        <label>
+          <span>{{ accountCopy.newPassword }}</span>
+          <input v-model="passwordForm.newPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" required />
+        </label>
+        <label>
+          <span>{{ accountCopy.confirmPassword }}</span>
+          <input v-model="passwordForm.confirmPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" required />
+        </label>
+        <button class="primary-btn drawer-submit" type="submit" :disabled="passwordSaving">
+          {{ accountCopy.savePassword }}
+        </button>
+      </form>
+    </AppDrawer>
   </div>
 </template>

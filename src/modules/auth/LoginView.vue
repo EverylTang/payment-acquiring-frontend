@@ -8,13 +8,21 @@ const password = ref("");
 const busy = ref(false);
 const error = ref("");
 
+const loginErrorMessage = (reason: unknown) => {
+  if (reason instanceof TypeError && reason.message === "Failed to fetch") {
+    return "无法连接登录服务，请确认 Gateway 和 Platform 服务已启动。";
+  }
+  if (reason instanceof Error && reason.message) return reason.message;
+  return "登录失败，请稍后重试。";
+};
+
 const submit = async () => {
   busy.value = true;
   error.value = "";
   try {
     await signIn(username.value, password.value);
-  } catch {
-    error.value = "用户名或密码错误";
+  } catch (reason) {
+    error.value = loginErrorMessage(reason);
   } finally {
     busy.value = false;
   }

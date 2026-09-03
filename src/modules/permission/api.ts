@@ -3,7 +3,8 @@ export type AdminRole = { id: number; roleCode: string; roleName: string };
 export type RolePermissions = { menuCodes: string[]; permissionCodes: string[] };
 export type PermissionCatalog = { menus: Array<{ menuCode: string; menuName: string; parentId: number; menuType: string; status: string; visible: boolean; sortOrder: number }>; permissions: Array<{ permissionCode: string; permissionName: string; resourceType: string; status: string }> };
 export type PageResponse<T> = { items: T[]; page: number; pageSize: number; total: number };
-export const getRoles = () => request<PageResponse<AdminRole>>("/admin/v1/roles?page=1&pageSize=100");
+export const getRoles = (params: { page?: number; pageSize?: number } = {}) =>
+  request<PageResponse<AdminRole>>(`/admin/v1/roles?${new URLSearchParams({ page: String(params.page || 1), pageSize: String(params.pageSize || 100) })}`);
 export const getRolePermissions = (roleCode: string) => request<RolePermissions>(`/admin/v1/roles/${encodeURIComponent(roleCode)}/permissions`);
 export const updateRolePermissions = (roleCode: string, payload: RolePermissions) => request<RolePermissions>(`/admin/v1/roles/${encodeURIComponent(roleCode)}/permissions`, { method: "PUT", body: JSON.stringify(payload) });
 export const getPermissionCatalog = () => request<PermissionCatalog>("/admin/v1/permission-catalog");
