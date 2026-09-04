@@ -15,12 +15,7 @@ export type Channel = {
   signatureProfile: string;
   status: "ACTIVE" | "DISABLED";
   configuration: Record<string, unknown>;
-  credentialBindings: Array<{
-    credentialRole: string;
-    secretRef: string;
-    keyVersion?: string;
-    status: "ACTIVE" | "DISABLED";
-  }>;
+  credentials: Record<string, unknown>;
 };
 
 export type RoutingRule = {
@@ -90,7 +85,7 @@ export const createChannel = (payload: {
   requestUrl: string;
   signatureProfile: string;
   configuration: Record<string, unknown>;
-  credentialBindings: Array<{ credentialRole: string; secretRef: string; keyVersion?: string }>;
+  credentials: Record<string, unknown>;
   country: string;
   currency: string;
   paymentMethod: string;
@@ -103,12 +98,8 @@ export const updateChannel = (channelId: string, payload: {
   requestUrl: string;
   signatureProfile: string;
   configuration: Record<string, unknown>;
-  credentialBindings?: Array<{ credentialRole: string; secretRef: string; keyVersion?: string }>;
+  credentials: Record<string, unknown>;
 }) => request<void>(`/admin/v1/channels/${encodeURIComponent(channelId)}`, { method: "PUT", body: JSON.stringify(payload) });
-export const getChannelCredentialBindings = (channelId: string) =>
-  request<Array<{ credentialRole: string; secretRef: string; keyVersion?: string; status: "ACTIVE" | "DISABLED" }>>(
-    `/admin/v1/channels/${encodeURIComponent(channelId)}/credentials`,
-  );
 export const changeChannelStatus = (channelId: string, status: string) =>
   request<void>(`/admin/v1/channels/${encodeURIComponent(channelId)}/status`, {
     method: "PUT",
@@ -148,6 +139,8 @@ export const changePricingRuleStatus = (ruleId: string, status: string) =>
 export const getRiskPolicies = (params: { page?: number; pageSize?: number } = {}) => request<PageResponse<RiskPolicy>>(`/admin/v1/risk-policies?${configPage(params)}`);
 export const createRiskPolicy = (payload: Record<string, unknown>) =>
   request<void>("/admin/v1/risk-policies", { method: "POST", body: JSON.stringify(payload) });
+export const updateRiskPolicy = (policyId: string, payload: Record<string, unknown>) =>
+  request<void>(`/admin/v1/risk-policies/${encodeURIComponent(policyId)}`, { method: "PUT", body: JSON.stringify(payload) });
 export const changeRiskPolicyStatus = (policyId: string, status: string) =>
   request<void>(`/admin/v1/risk-policies/${encodeURIComponent(policyId)}/status`, {
     method: "PUT",

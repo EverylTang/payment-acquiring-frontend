@@ -12,7 +12,6 @@ import {
   createPricingRule,
   createRiskPolicy,
   createRoutingRule,
-  getChannelCredentialBindings,
   getChannels,
   getPricingRules,
   getReleases,
@@ -20,6 +19,7 @@ import {
   getRoutingRules,
   updateChannel,
   updatePricingRule,
+  updateRiskPolicy,
   updateRoutingRule,
   type Channel,
   type ConfigRelease,
@@ -55,9 +55,10 @@ const drawer = ref<"config" | "route" | null>(null);
 const editingChannel = ref<Channel | null>(null);
 const editingRoute = ref<RoutingRule | null>(null);
 const editingPricing = ref<PricingRule | null>(null);
+const editingRisk = ref<RiskPolicy | null>(null);
 const channelForm = ref({ channelId: "", name: "", provider: "", requestUrl: "", signatureProfile: "DEFAULT", country: "US", currency: "USD", paymentMethod: "CARD", minAmount: 0.01, maxAmount: 100000 });
-const channelConfigEntries = ref<Array<{ key: string; value: string }>>([]);
-const channelCredentialEntries = ref<Array<{ credentialRole: string; secretRef: string; keyVersion: string }>>([]);
+const channelConfigurationJson = ref("{}");
+const channelCredentialsJson = ref("{}");
 const signatureProfiles = [
   { value: "NONE", label: "不签名（仅限受信通道）" },
   { value: "MD5_KEY_SUFFIX_V1", label: "MD5 参数排序 + Key 后缀" },
@@ -88,6 +89,7 @@ const createLabel = computed(() => ({ routing: routingView.value === "channels" 
 const configDrawerTitle = computed(() => editingChannel.value ? "编辑渠道" : "新增渠道");
 const routeDrawerTitle = computed(() => editingRoute.value ? "编辑路由规则" : "新增路由规则");
 const pricingDrawerTitle = computed(() => editingPricing.value ? "编辑费率规则" : "新增费率规则");
+const riskDrawerTitle = computed(() => editingRisk.value ? "编辑风控策略" : "新增风控策略");
 const draftReleases = computed(() => releases.value.filter((item) => item.status === "DRAFT"));
 const activeChannels = computed(() => channels.value.filter((item) => item.status === "ACTIVE").length);
 const activeRoutes = computed(() => routes.value.filter((item) => item.status === "ACTIVE").length);
@@ -122,31 +124,6 @@ const parseObject = (value: string, field: string) => {
   } catch {
     throw new Error(`${field}必须是 JSON 对象`);
   }
-};
-const channelConfiguration = () => {
-  const configuration: Record<string, string> = {};
-  for (const entry of channelConfigEntries.value) {
-    const key = entry.key.trim();
-    if (!key && !entry.value.trim()) continue;
-    if (!key || !entry.value.trim()) throw new Error("请完整填写渠道接入参数");
-    if (Object.hasOwn(configuration, key)) throw new Error(`渠道接入参数重复：${key}`);
-    configuration[key] = entry.value.trim();
-  }
-  return configuration;
-};
-const channelCredentialBindings = () => {
-  const roles = new Set<string>();
-  return channelCredentialEntries.value.flatMap((entry) => {
-    const credentialRole = entry.credentialRole.trim();
-    const secretRef = entry.secretRef.trim();
-    const keyVersion = entry.keyVersion.trim();
-    if (!credentialRole && !secretRef && !keyVersion) return [];
-    if (!credentialRole || !secretRef) throw new Error("请完整填写凭据角色和密钥引用");
-    if (!/^[a-z][a-z0-9+.-]*:\/\/\S+$/i.test(secretRef)) throw new Error("密钥引用必须是 KMS URI，例如 vault://payment/channel/api-secret");
-    if (roles.has(credentialRole)) throw new Error(`渠道凭据角色重复：${credentialRole}`);
-    roles.add(credentialRole);
-    return [{ credentialRole, secretRef, keyVersion: keyVersion || undefined }];
-  });
 };
 const load = async () => {
   loading.value = true;
@@ -223,8 +200,8 @@ const perform = async (action: () => Promise<unknown>, success?: string) => {
 };
 const createConfigItem = () => perform(async () => {
   if (props.section === "routing") {
-    const configuration = channelConfiguration();
-    const credentialBindings = channelCredentialBindings();
+    const configuration = parseObject(channelConfigurationJson.value, "接入参数 JSON");
+    const credentials = parseObject(channelCredentialsJson.value, "渠道凭证 JSON");
     if (editingChannel.value) {
       await updateChannel(editingChannel.value.channelId, {
         name: channelForm.value.name,
@@ -232,13 +209,13 @@ const createConfigItem = () => perform(async () => {
         requestUrl: channelForm.value.requestUrl,
         signatureProfile: channelForm.value.signatureProfile,
         configuration,
-        credentialBindings,
+        credentials,
       });
       drawer.value = null;
       editingChannel.value = null;
       return;
     }
-    await createChannel({ ...channelForm.value, configuration, credentialBindings });
+    await createChannel({ ...channelForm.value, configuration, credentials });
     resetChannelForm();
     drawer.value = null;
     return;
@@ -271,6 +248,17 @@ const createConfigItem = () => perform(async () => {
     drawer.value = null;
     return;
   }
+  if (editingRisk.value) {
+    await updateRiskPolicy(editingRisk.value.policyId, {
+      name: riskForm.value.name,
+      priority: riskForm.value.priority,
+      decision: riskForm.value.decision,
+      condition: parseObject(riskForm.value.condition, "策略条件"),
+    });
+    editingRisk.value = null;
+    drawer.value = null;
+    return;
+  }
   if (!riskForm.value.releaseId) throw new Error("请选择草稿版本");
   await createRiskPolicy({ ...riskForm.value, condition: parseObject(riskForm.value.condition, "策略条件") });
   riskForm.value.policyId = "";
@@ -298,8 +286,8 @@ const createRoute = () => perform(async () => {
 }, "路由规则已保存到草稿版本");
 const resetChannelForm = () => {
   channelForm.value = { channelId: "", name: "", provider: "", requestUrl: "", signatureProfile: "DEFAULT", country: "US", currency: "USD", paymentMethod: "CARD", minAmount: 0.01, maxAmount: 100000 };
-  channelConfigEntries.value = [];
-  channelCredentialEntries.value = [];
+  channelConfigurationJson.value = "{}";
+  channelCredentialsJson.value = "{}";
 };
 const resetRouteForm = () => {
   routeForm.value = { ruleId: "", releaseId: "", productCode: "", merchantId: "", paymentMethod: "CARD", country: "US", currency: "USD", channelId: "", priority: 100, weight: 100 };
@@ -324,18 +312,9 @@ const openChannelCreate = () => {
 const editChannel = async (channel: Channel) => {
   editingChannel.value = channel;
   channelForm.value = { ...channelForm.value, channelId: channel.channelId, name: channel.name, provider: channel.provider, requestUrl: channel.requestUrl, signatureProfile: channel.signatureProfile };
-  channelConfigEntries.value = Object.entries(channel.configuration || {}).map(([key, value]) => ({ key, value: typeof value === "string" ? value : JSON.stringify(value) }));
-  channelCredentialEntries.value = [];
+  channelConfigurationJson.value = JSON.stringify(channel.configuration || {}, null, 2);
+  channelCredentialsJson.value = JSON.stringify(channel.credentials || {}, null, 2);
   drawer.value = "config";
-  try {
-    channelCredentialEntries.value = (await getChannelCredentialBindings(channel.channelId)).map((binding) => ({
-      credentialRole: binding.credentialRole,
-      secretRef: binding.secretRef,
-      keyVersion: binding.keyVersion || "",
-    }));
-  } catch (error) {
-    emit("notice", error instanceof Error ? error.message : "渠道凭据引用加载失败");
-  }
 };
 const openRouteCreate = () => {
   editingRoute.value = null;
@@ -345,6 +324,23 @@ const openRouteCreate = () => {
 const openPricingCreate = () => {
   editingPricing.value = null;
   resetPricingForm();
+  drawer.value = "config";
+};
+const openRiskCreate = () => {
+  editingRisk.value = null;
+  riskForm.value = { policyId: "", releaseId: "", name: "", priority: 100, decision: "REVIEW", condition: "{}" };
+  drawer.value = "config";
+};
+const editRisk = (policy: RiskPolicy) => {
+  editingRisk.value = policy;
+  riskForm.value = {
+    policyId: policy.policyId,
+    releaseId: "",
+    name: policy.name,
+    priority: policy.priority,
+    decision: policy.decision,
+    condition: JSON.stringify(policy.condition, null, 2),
+  };
   drawer.value = "config";
 };
 const editPricing = (rule: PricingRule) => {
@@ -390,7 +386,7 @@ onMounted(load);
     <div class="panel-title">
       <div><span class="eyebrow">CONFIGURATION CENTER</span><h3>{{ title }}</h3></div>
       <div class="button-row">
-        <button v-if="canOperate" class="primary-btn" @click="section === 'routing' ? (routingView === 'routes' ? openRouteCreate() : openChannelCreate()) : section === 'pricing' ? openPricingCreate() : (drawer = 'config')">{{ createLabel }}</button>
+        <button v-if="canOperate" class="primary-btn" @click="section === 'routing' ? (routingView === 'routes' ? openRouteCreate() : openChannelCreate()) : section === 'pricing' ? openPricingCreate() : openRiskCreate()">{{ createLabel }}</button>
         <button class="icon-btn" title="刷新" :disabled="loading" @click="load"><RefreshCw :class="{ spin: loading }" :size="16" /></button>
       </div>
     </div>
@@ -419,7 +415,7 @@ onMounted(load);
               <tr v-for="item in channels" :key="item.channelId">
                 <td><strong>{{ item.name }}</strong><small class="table-subtext mono">{{ item.channelId }}</small></td>
                 <td>{{ item.provider || "--" }}<small class="table-subtext url-text" :title="item.requestUrl">{{ item.requestUrl || "--" }}</small></td>
-                <td><strong class="mono">{{ item.signatureProfile }}</strong><small class="table-subtext"><span class="configuration-count">{{ Object.keys(item.configuration || {}).length }} 项参数 · {{ item.credentialBindings.length }} 个凭据引用</span> · 编辑时可回显凭据引用</small></td>
+                <td><strong class="mono">{{ item.signatureProfile }}</strong><small class="table-subtext"><span class="configuration-count">{{ Object.keys(item.configuration || {}).length }} 项参数 · {{ Object.keys(item.credentials || {}).length }} 个凭据</span> · 参数与凭据采用 JSON 配置</small></td>
                 <td><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span></td>
                 <td class="actions"><button v-if="canOperate" class="icon-btn" title="编辑渠道" @click="editChannel(item)"><Pencil :size="16" /></button><button v-if="canApprove" class="icon-btn" title="切换渠道状态" @click="toggle('channel', item.channelId, item.status)"><ToggleLeft :size="17" /></button></td>
               </tr>
@@ -446,12 +442,12 @@ onMounted(load);
         <div class="section-heading"><h4>风控策略</h4><span>{{ policyPage.total }} 条策略</span></div>
         <div v-if="loading" class="empty">加载中…</div>
         <div v-else-if="!policies.length" class="empty">暂无风控策略</div>
-        <div v-else class="record-list"><div v-for="item in policies" :key="item.policyId" class="record-row"><div><strong>{{ item.name }} · {{ item.decision }}</strong><small>{{ item.policyId }} · v{{ item.releaseVersion }} · 优先级 {{ item.priority }} · {{ JSON.stringify(item.condition) }}</small></div><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span><button v-if="canApprove" class="icon-btn" title="切换策略状态" @click="toggle('risk', item.policyId, item.status)"><ToggleLeft :size="17" /></button></div></div>
+        <div v-else class="record-list"><div v-for="item in policies" :key="item.policyId" class="record-row"><div><strong>{{ item.name }} · {{ item.decision }}</strong><small>{{ item.policyId }} · v{{ item.releaseVersion }} · 优先级 {{ item.priority }} · {{ JSON.stringify(item.condition) }}</small></div><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span><button v-if="canOperate" class="icon-btn" title="编辑风控策略" @click="editRisk(item)"><Pencil :size="16" /></button><button v-if="canApprove" class="icon-btn" title="切换策略状态" @click="toggle('risk', item.policyId, item.status)"><ToggleLeft :size="17" /></button></div></div>
         <AppPagination :page="policyPage.current" :page-size="policyPage.pageSize" :total="policyPage.total" noun="条策略" @change="(current) => changePage('policy', current)" />
       </template>
     </section>
 
-    <AppDrawer v-if="drawer" :title="drawer === 'route' ? routeDrawerTitle : drawer === 'config' && section === 'routing' ? configDrawerTitle : drawer === 'config' && section === 'pricing' ? pricingDrawerTitle : createLabel" description="CONFIGURATION" @close="drawer = null">
+    <AppDrawer v-if="drawer" :title="drawer === 'route' ? routeDrawerTitle : drawer === 'config' && section === 'routing' ? configDrawerTitle : drawer === 'config' && section === 'pricing' ? pricingDrawerTitle : riskDrawerTitle" description="CONFIGURATION" @close="drawer = null">
       <div v-if="drawer === 'config'" class="drawer-section">
         <ElForm v-if="section === 'routing'" :model="channelForm" label-position="top" class="configuration-element-form">
           <div class="drawer-section-heading"><div><h4>{{ editingChannel ? '渠道基础配置' : '渠道与接入能力' }}</h4><small>{{ editingChannel ? '渠道标识和接入范围创建后保持不变；此处更新服务商、请求地址、签名方案和运行参数。' : '创建后即可在路由规则中选择该渠道。' }}</small></div></div>
@@ -469,8 +465,8 @@ onMounted(load);
               <ElFormItem label="单笔最大金额" required><ElInputNumber v-model="channelForm.maxAmount" :min="0.01" :precision="2" :step="100" controls-position="right" /></ElFormItem>
             </template>
           </div>
-          <section class="channel-parameter-section"><div class="drawer-section-heading"><div><h4>非敏感接入参数</h4><small>例如终端标识、产品代码或 appId。密钥、令牌和私钥不在此录入。</small></div><button class="icon-btn" type="button" title="新增接入参数" @click="channelConfigEntries.push({ key: '', value: '' })"><Plus :size="16" /></button></div><div v-if="!channelConfigEntries.length" class="compact-empty">暂无接入参数</div><div v-else class="channel-parameter-list"><div v-for="(entry, index) in channelConfigEntries" :key="index" class="channel-parameter-row"><ElInput v-model="entry.key" placeholder="参数名，例如 terminalId" /><ElInput v-model="entry.value" placeholder="参数值" /><button class="icon-btn danger" type="button" title="移除接入参数" @click="channelConfigEntries.splice(index, 1)"><Trash2 :size="16" /></button></div></div></section>
-          <section class="channel-parameter-section"><div class="drawer-section-heading"><div><h4>安全凭据引用</h4><small>录入并回显 KMS URI，例如 env://PINGPONG_API_SECRET 或 vault://payment/channels/pingpong/api-secret；密钥原文不保存、不回显。保存以当前列表为准，删除全部行即清空绑定。</small></div><button class="icon-btn" type="button" title="新增凭据引用" @click="channelCredentialEntries.push({ credentialRole: '', secretRef: '', keyVersion: '' })"><Plus :size="16" /></button></div><div v-if="!channelCredentialEntries.length" class="compact-empty">{{ editingChannel ? '暂无安全凭据引用；保存将清空已有绑定' : '暂无安全凭据引用' }}</div><div v-else class="channel-parameter-list"><div v-for="(entry, index) in channelCredentialEntries" :key="index" class="channel-credential-row"><ElInput v-model="entry.credentialRole" placeholder="角色，例如 requestSigningKey" /><ElInput v-model="entry.secretRef" placeholder="KMS URI" /><ElInput v-model="entry.keyVersion" placeholder="版本（可选）" /><button class="icon-btn danger" type="button" title="移除凭据引用" @click="channelCredentialEntries.splice(index, 1)"><Trash2 :size="16" /></button></div></div></section>
+          <section class="channel-parameter-section"><div class="drawer-section-heading"><div><h4>接入参数 JSON</h4><small>完全自定义的渠道运行参数，不预设字段。仅填写不属于渠道凭据的参数。</small></div></div><ElInput v-model="channelConfigurationJson" type="textarea" :rows="8" placeholder='{"customParameter":"value"}' /></section>
+          <section class="channel-parameter-section"><div class="drawer-section-heading"><div><h4>渠道凭证 JSON</h4><small>商户号、应用标识、加签验签密钥及其他敏感值统一在此配置。凭据不会写入操作审计或支付尝试快照。</small></div></div><ElInput v-model="channelCredentialsJson" type="textarea" :rows="8" placeholder='{"merchantId":"...","requestSigningKey":"...","callbackVerifyKey":"..."}' /></section>
           <button class="primary-btn drawer-submit" type="button" :disabled="saving || !channelForm.channelId || !channelForm.name || !channelForm.provider || !channelForm.requestUrl || !channelForm.signatureProfile" @click="createConfigItem"><Save :size="16" />{{ saving ? '保存中' : editingChannel ? '保存渠道' : '创建渠道' }}</button>
         </ElForm>
         <ElForm v-else-if="section === 'pricing'" :model="pricingForm" label-position="top" class="configuration-element-form">
@@ -495,8 +491,7 @@ onMounted(load);
           </div>
           <button class="primary-btn drawer-submit" type="button" :disabled="saving || !pricingForm.ruleId || !pricingForm.productCode || !pricingForm.currency || !pricingForm.releaseId && !editingPricing" @click="createConfigItem"><Save :size="16" />{{ saving ? '保存中' : editingPricing ? '保存费率规则' : '创建费率规则' }}</button>
         </ElForm>
-        <template v-else><div class="form-grid drawer-form-grid"><input v-model="riskForm.policyId" placeholder="策略 ID" /><select v-model="riskForm.releaseId"><option value="">选择草稿版本</option><option v-for="item in draftReleases" :key="item.releaseId" :value="item.releaseId">v{{ item.versionNo }} · {{ item.releaseId }}</option></select><input v-model="riskForm.name" placeholder="策略名称" /><input v-model.number="riskForm.priority" type="number" min="1" placeholder="优先级" /><select v-model="riskForm.decision"><option>REVIEW</option><option>PASS</option><option>REJECT</option></select><input v-model="riskForm.condition" placeholder='条件 JSON，如 {"amountGt":1000}' /></div></template>
-        <button v-if="section !== 'routing' && section !== 'pricing'" class="primary-btn drawer-submit" :disabled="saving" @click="createConfigItem">{{ createLabel }}</button>
+        <ElForm v-else :model="riskForm" label-position="top" class="configuration-element-form risk-policy-form"><div class="drawer-section-heading"><div><h4>{{ editingRisk ? '策略规则编辑' : '新建风控策略' }}</h4><small>{{ editingRisk ? `策略 ID ${editingRisk.policyId} 与发布版本 v${editingRisk.releaseVersion} 保持不变；仅草稿版本允许保存。` : '策略先保存至草稿版本，再由版本发布流程审核和生效。' }}</small></div></div><div class="drawer-form-grid"><ElFormItem label="策略 ID" required><ElInput v-model="riskForm.policyId" :disabled="!!editingRisk" placeholder="例如 RISK_AMOUNT_US_001" /></ElFormItem><ElFormItem v-if="!editingRisk" label="草稿版本" required><ElSelect v-model="riskForm.releaseId" placeholder="选择草稿版本"><ElOption v-for="item in draftReleases" :key="item.releaseId" :label="`v${item.versionNo} · ${item.releaseId}`" :value="item.releaseId" /></ElSelect></ElFormItem><ElFormItem label="策略名称" required><ElInput v-model="riskForm.name" placeholder="例如 美国高金额人工审核" /></ElFormItem><ElFormItem label="优先级" required><ElInputNumber v-model="riskForm.priority" :min="1" :max="100000" controls-position="right" /><small class="form-help">数值越小越先命中。</small></ElFormItem><ElFormItem label="命中动作" required><ElSelect v-model="riskForm.decision"><ElOption label="人工审核" value="REVIEW" /><ElOption label="拒绝交易" value="REJECT" /><ElOption label="明确放行" value="PASS" /></ElSelect></ElFormItem><ElFormItem class="configuration-json-field" label="策略条件" required><ElInput v-model="riskForm.condition" type="textarea" :rows="7" placeholder='例如 {"country":"US","currency":"USD","amountGte":1000}' /><small class="form-help">支持 merchantId、productCode、country、currency、amountGt、amountGte、amountLt、amountLte；条件字段共同生效。</small></ElFormItem></div><button class="primary-btn drawer-submit" type="button" :disabled="saving || !riskForm.policyId || !riskForm.name || (!editingRisk && !riskForm.releaseId)" @click="createConfigItem"><Save :size="16" />{{ saving ? '保存中' : editingRisk ? '保存策略' : '创建策略' }}</button></ElForm>
       </div>
       <div v-else-if="drawer === 'route'" class="drawer-section"><ElForm :model="routeForm" label-position="top" class="configuration-element-form"><div class="drawer-section-heading"><div><h4>{{ editingRoute ? '路由策略编辑' : '路由策略定义' }}</h4><small>{{ editingRoute ? `正在编辑 ${editingRoute.ruleId}，保持发布版本 v${editingRoute.releaseVersion} 不变。` : '规则仅可关联至草稿版本，发布后按版本统一生效。' }}</small></div></div><div class="drawer-form-grid"><ElFormItem label="规则 ID" required><ElInput v-model="routeForm.ruleId" :disabled="!!editingRoute" placeholder="例如 ROUTE_CARD_US_001" /></ElFormItem><ElFormItem v-if="!editingRoute" label="草稿版本" required><ElSelect v-model="routeForm.releaseId" placeholder="选择草稿版本"><ElOption v-for="item in draftReleases" :key="item.releaseId" :label="`v${item.versionNo} · ${item.releaseId}`" :value="item.releaseId" /></ElSelect></ElFormItem><ElFormItem label="产品编码" required><ElInput v-model="routeForm.productCode" placeholder="产品编码" /></ElFormItem><ElFormItem label="商户 ID"><ElInput v-model="routeForm.merchantId" placeholder="留空表示默认商户池" /></ElFormItem><ElFormItem label="目标渠道 ID" required><ElInput v-model="routeForm.channelId" placeholder="从渠道列表复制 ID" /></ElFormItem><ElFormItem label="支付方式" required><ElInput v-model="routeForm.paymentMethod" placeholder="CARD" /></ElFormItem><ElFormItem label="国家 / 地区"><ElInput v-model="routeForm.country" maxlength="8" placeholder="US，留空表示全区域" @input="routeForm.country = routeForm.country.toUpperCase()" /></ElFormItem><ElFormItem label="交易币种" required><ElInput v-model="routeForm.currency" maxlength="3" placeholder="USD" @input="routeForm.currency = routeForm.currency.toUpperCase()" /></ElFormItem><ElFormItem label="优先级" required><ElInputNumber v-model="routeForm.priority" :min="1" :max="100000" controls-position="right" /><small class="form-help">数值越小越优先；仅在本层无可用渠道时才会切换下一优先级。</small></ElFormItem><ElFormItem label="流量权重" required><ElInputNumber v-model="routeForm.weight" :min="1" :max="100000" controls-position="right" /><small class="form-help">仅与相同商户作用域、相同优先级的规则比较，按权重比例分配流量。</small></ElFormItem></div><button class="primary-btn drawer-submit" type="button" :disabled="saving || !routeForm.ruleId || !routeForm.productCode || !routeForm.channelId || !routeForm.paymentMethod || !routeForm.currency || (!editingRoute && !routeForm.releaseId)" @click="createRoute"><Save :size="16" />{{ saving ? '保存中' : editingRoute ? '保存路由规则' : '创建路由规则' }}</button></ElForm></div>
     </AppDrawer>

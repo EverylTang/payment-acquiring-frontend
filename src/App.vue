@@ -5,6 +5,7 @@ import {
   Check,
   ChevronDown,
   CircleDollarSign,
+  Eye,
   KeyRound,
   LayoutDashboard,
   Layers3,
@@ -30,7 +31,7 @@ import { type Merchant } from "./modules/merchant/api";
 import { getProducts, type Product } from "./modules/product/api";
 import { getRoles, getUsers, type AdminUser } from "./modules/user/api";
 import { getPermissionCatalog, getRolePermissions, type AdminRole, type PermissionCatalog } from "./modules/permission/api";
-import { callbackOrder, cancelOrder, cancelPaymentAttempt, createOrder, createPaymentAttempt, getOrder, getOrderHealth, getOrderPage, getOrderStatistics, queryPaymentAttempt, retryPaymentAttempt, type CreateOrderRequest, type Order, type OrderPage, type PaymentAttempt } from "./modules/order/api";
+import { cancelOrder, cancelPaymentAttempt, createOrder, createPaymentAttempt, getOrder, getOrderHealth, getOrderPage, getOrderStatistics, queryPaymentAttempt, resendOrderNotification, retryPaymentAttempt, type CreateOrderRequest, type Order, type OrderPage, type PaymentAttempt } from "./modules/order/api";
 import { getChannelHealth, getOverview, getSnapshot, type DashboardOverview } from "./modules/dashboard/api";
 import { authState, signOut } from "./auth";
 import { changePassword } from "./modules/auth/api";
@@ -49,6 +50,7 @@ import MenuManagementView from "./modules/menu/MenuManagementView.vue";
 import RoutingRuleManagementView from "./modules/routing/RoutingRuleManagementView.vue";
 import PricingRuleManagementView from "./modules/pricing/PricingRuleManagementView.vue";
 import MasterDataView from "./modules/master-data/MasterDataView.vue";
+import RiskWorkspaceView from "./modules/risk/RiskWorkspaceView.vue";
 import AppDrawer from "./components/AppDrawer.vue";
 
 const active = ref<string | null>(null);
@@ -467,9 +469,42 @@ const findOrder = async () => {
   selectedAttempt.value = null;
 };
 const createNewOrder = async () => {
+  if (
+    !orderForm.value.merchantId.trim() ||
+    !orderForm.value.merchantOrderNo.trim() ||
+    !orderForm.value.productCode.trim() ||
+    !orderForm.value.paymentMethod.trim() ||
+    !orderForm.value.country.trim() ||
+    !orderForm.value.currency.trim() ||
+    !Number.isFinite(orderForm.value.amount) ||
+    orderForm.value.amount <= 0
+  ) {
+    notice.value = "请完整填写订单的商户、产品、支付方式、国家、币种和金额";
+    return;
+  }
+  const expireAt = orderForm.value.expireAt?.trim();
+  const parsedExpireAt = expireAt ? new Date(expireAt) : null;
+  if (parsedExpireAt && Number.isNaN(parsedExpireAt.getTime())) {
+    notice.value = "请输入有效的订单过期时间";
+    return;
+  }
+  const payload: CreateOrderRequest = {
+    ...orderForm.value,
+    merchantId: orderForm.value.merchantId.trim(),
+    merchantOrderNo: orderForm.value.merchantOrderNo.trim(),
+    productCode: orderForm.value.productCode.trim().toUpperCase(),
+    paymentMethod: orderForm.value.paymentMethod.trim().toUpperCase(),
+    country: orderForm.value.country.trim().toUpperCase(),
+    currency: orderForm.value.currency.trim().toUpperCase(),
+    expireAt: parsedExpireAt?.toISOString(),
+    notifyUrl: orderForm.value.notifyUrl?.trim() || undefined,
+    returnUrl: orderForm.value.returnUrl?.trim() || undefined,
+    customerReference: orderForm.value.customerReference?.trim() || undefined,
+    description: orderForm.value.description?.trim() || undefined,
+  };
   const key = crypto.randomUUID();
   const result = await run(
-    () => createOrder(orderForm.value, key),
+    () => createOrder(payload, key),
     "订单创建成功",
   );
   if (result) {
@@ -479,11 +514,26 @@ const createNewOrder = async () => {
     orderDrawer.value = "detail";
   }
 };
-const inspectOrder = (order: Order) => {
+const openCreateOrder = () => {
+  orderForm.value = {
+    merchantId: orderForm.value.merchantId || "merchant-demo",
+    merchantOrderNo: `web-${Date.now()}`,
+    productCode: orderForm.value.productCode || "CARD-US-USD",
+    paymentMethod: orderForm.value.paymentMethod || "CARD",
+    country: orderForm.value.country || "US",
+    currency: orderForm.value.currency || "USD",
+    amount: orderForm.value.amount || 100,
+  };
+  orderDrawer.value = "create";
+};
+const formatOrderTime = (value?: string) => value?.replace("T", " ").replace(/\.\d+Z?$/, "") || "--";
+const inspectOrder = async (order: Order) => {
   selectedOrder.value = order;
   selectedAttempt.value = null;
   queryId.value = order.orderId;
   orderDrawer.value = "detail";
+  const result = await run(() => getOrder(order.orderId));
+  if (result) selectedOrder.value = result;
 };
 const refreshOrderStatus = async () => {
   if (!selectedOrder.value) return;
@@ -493,13 +543,17 @@ const refreshOrderStatus = async () => {
   );
   if (result) selectedOrder.value = result;
 };
-const mutateOrder = async (kind: "cancel" | "success" | "failed") => {
+const cancelSelectedOrder = async () => {
   if (!selectedOrder.value) return;
-  const action =
-    kind === "cancel"
-      ? cancelOrder(selectedOrder.value.orderId)
-      : callbackOrder(selectedOrder.value.orderId, kind.toUpperCase());
-  const result = await run(() => action, "订单状态已更新");
+  const result = await run(() => cancelOrder(selectedOrder.value!.orderId), "订单已取消");
+  if (result) selectedOrder.value = result;
+};
+const resendNotification = async () => {
+  if (!selectedOrder.value) return;
+  const result = await run(
+    () => resendOrderNotification(selectedOrder.value!.orderId, "后台人工再次通知"),
+    "商户通知已重新入队",
+  );
   if (result) selectedOrder.value = result;
 };
 const createAttempt = async () => {
@@ -746,7 +800,7 @@ onMounted(async () => {
             <button class="outline-btn" @click="selectedOrder = null; orderDrawer = 'detail'">
               <Search :size="16" />查询订单
             </button>
-            <button class="primary-btn" @click="orderDrawer = 'create'">创建订单</button>
+            <button class="primary-btn" @click="openCreateOrder">创建订单</button>
             <button class="icon-btn" title="刷新订单" @click="loadOrders(orderPage.page)">
               <RefreshCw :size="16" />
             </button>
@@ -759,8 +813,10 @@ onMounted(async () => {
           /><select v-model="orderFilters.status">
             <option value="">全部状态</option>
             <option value="CREATED">CREATED</option>
+            <option value="PAYING">PAYING</option>
             <option value="SUCCESS">SUCCESS</option>
             <option value="FAILED">FAILED</option>
+            <option value="UNKNOWN">UNKNOWN</option>
             <option value="CANCELED">CANCELED</option></select
           ><input v-model="orderFilters.currency" placeholder="币种" /><button
             class="primary-btn"
@@ -772,20 +828,23 @@ onMounted(async () => {
         <div v-if="!listLoading && orderPage.items.length" class="table-wrap order-list">
           <table class="data-table">
             <thead>
-              <tr><th>商户订单号</th><th>订单 ID</th><th>商户</th><th class="num">金额</th><th>状态</th></tr>
+              <tr><th>商户订单号</th><th>订单 ID</th><th>商户</th><th class="num">订单金额</th><th class="num">付款实付</th><th class="num">商户净额</th><th>承担方</th><th>状态</th><th class="actions">操作</th></tr>
             </thead>
             <tbody>
               <tr
                 v-for="order in orderPage.items"
                 :key="order.orderId"
                 :class="{ selected: selectedOrder?.orderId === order.orderId }"
-                @click="inspectOrder(order)"
               >
                 <td><strong>{{ order.merchantOrderNo }}</strong></td>
                 <td class="mono">{{ order.orderId }}</td>
                 <td class="mono">{{ order.merchantId }}</td>
                 <td class="num mono">{{ order.amount }} {{ order.currency }}</td>
+                <td class="num mono">{{ order.payerPayableAmount ?? order.amount }} {{ order.currency }}</td>
+                <td class="num mono">{{ order.netAmount ?? order.amount }} {{ order.currency }}</td>
+                <td>{{ order.feeBearer === "PAYER" ? "付款方" : "商户" }}</td>
                 <td><span class="status-badge" :class="'st-' + order.status.toLowerCase()">{{ order.status }}</span></td>
+                <td class="actions"><button class="icon-btn" title="查看订单详情" @click.stop="inspectOrder(order)"><Eye :size="16" /></button></td>
               </tr>
             </tbody>
           </table>
@@ -823,20 +882,36 @@ onMounted(async () => {
           :description="orderDrawer === 'create' ? 'PAYMENT ORDER' : 'ORDER OPERATIONS'"
           @close="orderDrawer = null"
         >
-          <template v-if="orderDrawer === 'create'">
-            <div class="drawer-section">
-              <div class="form-grid drawer-form-grid">
-                <input v-model="orderForm.merchantId" placeholder="商户 ID" />
-                <input v-model="orderForm.merchantOrderNo" placeholder="商户订单号" />
-                <input v-model="orderForm.productCode" placeholder="产品编码" />
-                <input v-model="orderForm.paymentMethod" placeholder="支付方式" />
-                <input v-model="orderForm.country" placeholder="国家" />
-                <input v-model="orderForm.currency" placeholder="币种" />
-                <input v-model.number="orderForm.amount" type="number" min="0.01" step="0.01" placeholder="金额" />
+          <form v-if="orderDrawer === 'create'" class="order-create-form" @submit.prevent="createNewOrder">
+            <section class="drawer-section">
+              <div class="drawer-section-heading"><div><h4>交易主体</h4><small>订单会按商户、产品、支付方式、国家和币种匹配已发布路由与费率。</small></div></div>
+              <div class="drawer-form-grid">
+                <label class="form-field"><span>商户 ID <b>*</b></span><input v-model="orderForm.merchantId" maxlength="64" placeholder="例如 merchant-demo" /></label>
+                <label class="form-field"><span>商户订单号 <b>*</b></span><input v-model="orderForm.merchantOrderNo" maxlength="128" placeholder="商户侧唯一订单号" /></label>
+                <label class="form-field"><span>产品编码 <b>*</b></span><input v-model="orderForm.productCode" maxlength="64" placeholder="例如 CARD-US-USD" @input="orderForm.productCode = orderForm.productCode.toUpperCase()" /></label>
+                <label class="form-field"><span>支付方式 <b>*</b></span><input v-model="orderForm.paymentMethod" maxlength="64" placeholder="例如 CARD" @input="orderForm.paymentMethod = orderForm.paymentMethod.toUpperCase()" /></label>
+                <label class="form-field"><span>国家/地区 <b>*</b></span><input v-model="orderForm.country" maxlength="8" placeholder="例如 US" @input="orderForm.country = orderForm.country.toUpperCase()" /></label>
+                <label class="form-field"><span>币种 <b>*</b></span><input v-model="orderForm.currency" maxlength="8" placeholder="例如 USD" @input="orderForm.currency = orderForm.currency.toUpperCase()" /></label>
               </div>
-              <button class="primary-btn drawer-submit" :disabled="busy" @click="createNewOrder">创建真实订单</button>
-            </div>
-          </template>
+            </section>
+            <section class="drawer-section">
+              <div class="drawer-section-heading"><div><h4>金额与时效</h4><small>实付金额和商户净额将在订单创建后按当前费率规则计算并固化。</small></div></div>
+              <div class="drawer-form-grid">
+                <label class="form-field"><span>订单金额 <b>*</b></span><input v-model.number="orderForm.amount" type="number" min="0.01" step="0.01" placeholder="0.00" /></label>
+                <label class="form-field"><span>过期时间</span><input v-model="orderForm.expireAt" type="datetime-local" /></label>
+              </div>
+            </section>
+            <section class="drawer-section">
+              <div class="drawer-section-heading"><div><h4>通知与附加信息</h4><small>通知与跳转地址须为有效的 HTTP(S) 绝对地址。</small></div></div>
+              <div class="drawer-form-grid">
+                <label class="form-field"><span>异步通知地址</span><input v-model="orderForm.notifyUrl" type="url" maxlength="1024" placeholder="https://merchant.example/notify" /></label>
+                <label class="form-field"><span>支付完成跳转地址</span><input v-model="orderForm.returnUrl" type="url" maxlength="1024" placeholder="https://merchant.example/return" /></label>
+                <label class="form-field"><span>付款人引用</span><input v-model="orderForm.customerReference" maxlength="128" placeholder="内部可识别的付款人引用" /></label>
+                <label class="form-field"><span>订单描述</span><input v-model="orderForm.description" maxlength="1000" placeholder="订单说明（可选）" /></label>
+              </div>
+            </section>
+            <div class="drawer-actions"><button type="button" class="outline-btn" @click="orderDrawer = null">取消</button><button class="primary-btn" type="submit" :disabled="busy">{{ busy ? "创建中" : "创建订单" }}</button></div>
+          </form>
           <template v-else>
             <div v-if="!selectedOrder" class="drawer-section">
               <p class="drawer-copy">输入订单 ID 后可查看状态、支付尝试和退款信息。</p>
@@ -846,20 +921,35 @@ onMounted(async () => {
               </div>
             </div>
             <template v-else>
-              <div class="drawer-summary">
-                <span class="eyebrow">{{ selectedOrder.orderId }}</span>
-                <h4>{{ selectedOrder.merchantOrderNo }}</h4>
-                <p>{{ selectedOrder.amount }} {{ selectedOrder.currency }}</p>
+              <div class="order-detail-hero">
+                <div><span class="eyebrow">{{ selectedOrder.orderId }}</span><h4>{{ selectedOrder.merchantOrderNo }}</h4><p>{{ selectedOrder.merchantId }} · {{ selectedOrder.productCode }} · {{ selectedOrder.paymentMethod }}</p></div>
                 <span class="status-badge" :class="'st-' + selectedOrder.status.toLowerCase()">{{ selectedOrder.status }}</span>
-                <small>创建时间：{{ selectedOrder.createdAt || "--" }} · 过期时间：{{ selectedOrder.expireAt || "--" }}</small>
               </div>
+              <div class="order-amount-grid">
+                <div><span>订单金额</span><strong>{{ selectedOrder.amount }} {{ selectedOrder.currency }}</strong></div>
+                <div><span>付款实付</span><strong>{{ selectedOrder.payerPayableAmount ?? selectedOrder.amount }} {{ selectedOrder.currency }}</strong></div>
+                <div><span>商户净额</span><strong>{{ selectedOrder.netAmount ?? selectedOrder.amount }} {{ selectedOrder.currency }}</strong></div>
+              </div>
+              <section class="drawer-section order-detail-section">
+                <h4>交易信息</h4>
+                <dl class="order-detail-list"><div><dt>国家/地区</dt><dd>{{ selectedOrder.country || "--" }}</dd></div><div><dt>创建时间</dt><dd>{{ formatOrderTime(selectedOrder.createdAt) }}</dd></div><div><dt>过期时间</dt><dd>{{ formatOrderTime(selectedOrder.expireAt) }}</dd></div><div><dt>支付完成时间</dt><dd>{{ formatOrderTime(selectedOrder.paidAt) }}</dd></div><div><dt>支付令牌</dt><dd class="mono breakable">{{ selectedOrder.paymentToken || "--" }}</dd></div><div><dt>付款人引用</dt><dd>{{ selectedOrder.customerReference || "--" }}</dd></div></dl>
+              </section>
+              <section class="drawer-section order-detail-section">
+                <h4>费用与通知</h4>
+                <dl class="order-detail-list"><div><dt>费用承担</dt><dd>{{ selectedOrder.feeBearer === "PAYER" ? "付款方承担" : "商户承担" }}</dd></div><div><dt>手续费</dt><dd>{{ selectedOrder.feeAmount ?? 0 }} {{ selectedOrder.currency }}</dd></div><div><dt>异步通知</dt><dd class="breakable">{{ selectedOrder.notifyUrl || "--" }}</dd></div><div><dt>通知状态</dt><dd>{{ selectedOrder.callbackStatus || "NOT_CONFIGURED" }}<small v-if="selectedOrder.callbackAttemptCount"> · {{ selectedOrder.callbackAttemptCount }} 次</small></dd></div><div><dt>最近投递</dt><dd>{{ formatOrderTime(selectedOrder.callbackLastNotifiedAt) }}</dd></div><div><dt>完成跳转</dt><dd class="breakable">{{ selectedOrder.returnUrl || "--" }}</dd></div></dl>
+                <p v-if="selectedOrder.callbackLastError" class="order-notification-error">{{ selectedOrder.callbackLastError }}</p>
+                <p v-if="selectedOrder.description" class="order-description">{{ selectedOrder.description }}</p>
+              </section>
+              <section class="drawer-section order-detail-section">
+                <h4>路由与费率快照</h4>
+                <pre class="snapshot-preview">{{ selectedOrder.routeSnapshot || "--" }}\n{{ selectedOrder.pricingSnapshot || "--" }}</pre>
+              </section>
               <div class="drawer-section">
                 <h4>订单处置</h4>
                 <div class="button-row drawer-actions">
                   <button class="outline-btn" @click="refreshOrderStatus"><RefreshCw :size="16" />刷新状态</button>
-                  <button class="danger-btn" :disabled="['SUCCESS', 'FAILED', 'CANCELED'].includes(selectedOrder.status)" @click="mutateOrder('cancel')"><XCircle :size="16" />取消订单</button>
-                  <button class="primary-btn" @click="mutateOrder('success')">回调成功</button>
-                  <button class="outline-btn" @click="mutateOrder('failed')">回调失败</button>
+                  <button class="danger-btn" :disabled="['SUCCESS', 'FAILED', 'CANCELED'].includes(selectedOrder.status)" @click="cancelSelectedOrder"><XCircle :size="16" />取消订单</button>
+                  <button class="outline-btn" :disabled="selectedOrder.status !== 'SUCCESS' || !selectedOrder.notifyUrl" @click="resendNotification">再次通知商户</button>
                 </div>
               </div>
               <div class="drawer-section attempt-panel">
@@ -1098,9 +1188,8 @@ onMounted(async () => {
         v-else-if="active === '版本发布'"
         @notice="notice = $event"
       />
-      <ConfigurationCenterView
+      <RiskWorkspaceView
         v-else-if="active === '风控工作台'"
-        section="risk"
         @notice="notice = $event"
       />
       <MenuManagementView
