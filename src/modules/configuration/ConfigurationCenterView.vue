@@ -436,13 +436,11 @@ onMounted(load);
         <div class="management-pagination configuration-pagination"><ElPagination background layout="sizes, total, prev, pager, next" :current-page="routePage.current" :page-size="routePage.pageSize" :page-sizes="[20, 50, 100]" :total="routePage.total" :hide-on-single-page="false" @current-change="(current) => changePage('route', current)" @size-change="(size) => changePageSize('route', size)" /></div>
       </template>
       <template v-else-if="section === 'pricing'">
-        <template>
-          <div class="section-heading"><div><span class="eyebrow">PRICING CONTROL</span><h4>费率规则</h4></div><span>{{ pricingPage.total }} 条规则</span></div>
+        <div class="section-heading"><div><span class="eyebrow">PRICING CONTROL</span><h4>费率规则</h4></div><span>{{ pricingPage.total }} 条规则</span></div>
           <div v-if="loading" class="empty">加载中…</div>
           <div v-else-if="!pricing.length" class="empty">暂无费率规则</div>
           <div v-else class="configuration-table-wrap"><table class="data-table configuration-table"><thead><tr><th>适用范围</th><th>费率结构</th><th>交易金额限制</th><th>版本</th><th>状态</th><th class="actions">操作</th></tr></thead><tbody><tr v-for="item in pricing" :key="item.ruleId"><td><strong>{{ item.productCode }}</strong><small class="table-subtext">{{ item.merchantId || "全商户" }} · {{ item.channelId || "全部渠道" }} · {{ item.currency }}</small></td><td><strong>{{ pricingStructure(item) }}</strong><small class="table-subtext">{{ pricingLimits(item) }} · {{ item.feeMode }}</small></td><td>{{ formatAmount(item.minAmount, item.currency) }} - {{ formatAmount(item.maxAmount, item.currency) }}</td><td><span class="mono">v{{ item.releaseVersion }} · {{ item.ruleId }}</span></td><td><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span></td><td class="actions"><button v-if="canOperate" class="icon-btn" title="编辑费率规则" @click="editPricing(item)"><Pencil :size="16" /></button><button v-if="canApprove" class="icon-btn" title="切换规则状态" @click="toggle('pricing', item.ruleId, item.status)"><ToggleLeft :size="17" /></button></td></tr></tbody></table></div>
           <AppPagination :page="pricingPage.current" :page-size="pricingPage.pageSize" :total="pricingPage.total" noun="条规则" @change="(current) => changePage('pricing', current)" />
-        </template>
       </template>
       <template v-else>
         <div class="section-heading"><h4>风控策略</h4><span>{{ policyPage.total }} 条策略</span></div>
