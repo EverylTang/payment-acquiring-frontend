@@ -11,9 +11,16 @@ export type Channel = {
   channelId: string;
   name: string;
   provider: string;
+  requestUrl: string;
+  signatureProfile: string;
   status: "ACTIVE" | "DISABLED";
-  weight: number;
   configuration: Record<string, unknown>;
+  credentialBindings: Array<{
+    credentialRole: string;
+    secretRef: string;
+    keyVersion?: string;
+    status: "ACTIVE" | "DISABLED";
+  }>;
 };
 
 export type RoutingRule = {
@@ -35,10 +42,16 @@ export type PricingRule = {
   releaseVersion: number;
   productCode: string;
   merchantId?: string;
+  channelId?: string;
   currency: string;
   feeRate: number;
   fixedFee: number;
-  feeMode: "INCLUSIVE" | "EXCLUSIVE";
+  extraFee: number;
+  minFee?: number | null;
+  maxFee?: number | null;
+  feeType: "FIXED" | "PERCENTAGE" | "TIERED" | "COMBINED";
+  tiers: Array<{ minAmount: number; maxAmount: number; feeRate: number; fixedFee: number }>;
+  feeMode: "PAYER_BEAR" | "MERCHANT_BEAR" | "INCLUSIVE" | "EXCLUSIVE";
   minAmount: number;
   maxAmount: number;
   status: "ACTIVE" | "DISABLED";
@@ -74,14 +87,28 @@ export const createChannel = (payload: {
   channelId: string;
   name: string;
   provider: string;
-  weight: number;
+  requestUrl: string;
+  signatureProfile: string;
   configuration: Record<string, unknown>;
+  credentialBindings: Array<{ credentialRole: string; secretRef: string; keyVersion?: string }>;
   country: string;
   currency: string;
   paymentMethod: string;
   minAmount: number;
   maxAmount: number;
 }) => request<void>("/admin/v1/channels", { method: "POST", body: JSON.stringify(payload) });
+export const updateChannel = (channelId: string, payload: {
+  name: string;
+  provider: string;
+  requestUrl: string;
+  signatureProfile: string;
+  configuration: Record<string, unknown>;
+  credentialBindings?: Array<{ credentialRole: string; secretRef: string; keyVersion?: string }>;
+}) => request<void>(`/admin/v1/channels/${encodeURIComponent(channelId)}`, { method: "PUT", body: JSON.stringify(payload) });
+export const getChannelCredentialBindings = (channelId: string) =>
+  request<Array<{ credentialRole: string; secretRef: string; keyVersion?: string; status: "ACTIVE" | "DISABLED" }>>(
+    `/admin/v1/channels/${encodeURIComponent(channelId)}/credentials`,
+  );
 export const changeChannelStatus = (channelId: string, status: string) =>
   request<void>(`/admin/v1/channels/${encodeURIComponent(channelId)}/status`, {
     method: "PUT",
@@ -91,6 +118,16 @@ export const changeChannelStatus = (channelId: string, status: string) =>
 export const getRoutingRules = (params: { page?: number; pageSize?: number } = {}) => request<PageResponse<RoutingRule>>(`/admin/v1/routing-rules?${configPage(params)}`);
 export const createRoutingRule = (payload: Record<string, unknown>) =>
   request<void>("/admin/v1/routing-rules", { method: "POST", body: JSON.stringify(payload) });
+export const updateRoutingRule = (ruleId: string, payload: {
+  productCode: string;
+  merchantId?: string | null;
+  paymentMethod: string;
+  country?: string | null;
+  currency: string;
+  channelId: string;
+  priority: number;
+  weight: number;
+}) => request<void>(`/admin/v1/routing-rules/${encodeURIComponent(ruleId)}`, { method: "PUT", body: JSON.stringify(payload) });
 export const changeRoutingRuleStatus = (ruleId: string, status: string) =>
   request<void>(`/admin/v1/routing-rules/${encodeURIComponent(ruleId)}/status`, {
     method: "PUT",
@@ -100,6 +137,8 @@ export const changeRoutingRuleStatus = (ruleId: string, status: string) =>
 export const getPricingRules = (params: { page?: number; pageSize?: number } = {}) => request<PageResponse<PricingRule>>(`/admin/v1/pricing-rules?${configPage(params)}`);
 export const createPricingRule = (payload: Record<string, unknown>) =>
   request<void>("/admin/v1/pricing-rules", { method: "POST", body: JSON.stringify(payload) });
+export const updatePricingRule = (ruleId: string, payload: Record<string, unknown>) =>
+  request<void>(`/admin/v1/pricing-rules/${encodeURIComponent(ruleId)}`, { method: "PUT", body: JSON.stringify(payload) });
 export const changePricingRuleStatus = (ruleId: string, status: string) =>
   request<void>(`/admin/v1/pricing-rules/${encodeURIComponent(ruleId)}/status`, {
     method: "PUT",

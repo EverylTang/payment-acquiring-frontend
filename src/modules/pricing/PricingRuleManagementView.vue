@@ -25,7 +25,12 @@ const form = ref({
   currency: "",
   feeRate: "",
   fixedFee: "",
-  feeMode: "INCLUSIVE",
+  extraFee: "0",
+  minFee: "",
+  maxFee: "",
+  feeType: "PERCENTAGE" as "FIXED" | "PERCENTAGE" | "TIERED" | "COMBINED",
+  tiers: "[]",
+  feeMode: "PAYER_BEAR",
   minAmount: "0.01",
   maxAmount: "100000",
 });
@@ -53,6 +58,11 @@ const save = async () => {
       currency: form.value.currency,
       feeRate: parseFloat(form.value.feeRate || "0"),
       fixedFee: parseFloat(form.value.fixedFee || "0"),
+      extraFee: parseFloat(form.value.extraFee || "0"),
+      minFee: form.value.minFee ? parseFloat(form.value.minFee) : undefined,
+      maxFee: form.value.maxFee ? parseFloat(form.value.maxFee) : undefined,
+      feeType: form.value.feeType,
+      tiers: form.value.feeType === "TIERED" ? JSON.parse(form.value.tiers) : [],
       feeMode: form.value.feeMode,
       minAmount: form.value.minAmount ? parseFloat(form.value.minAmount) : undefined,
       maxAmount: form.value.maxAmount ? parseFloat(form.value.maxAmount) : undefined,
@@ -85,6 +95,11 @@ const edit = (rule: PricingRule) => {
     currency: rule.currency,
     feeRate: rule.feeRate?.toString() || "",
     fixedFee: rule.fixedFee?.toString() || "",
+    extraFee: rule.extraFee?.toString() || "0",
+    minFee: rule.minFee?.toString() || "",
+    maxFee: rule.maxFee?.toString() || "",
+    feeType: rule.feeType,
+    tiers: JSON.stringify(rule.tiers || []),
     feeMode: rule.feeMode,
     minAmount: rule.minAmount?.toString() || "",
     maxAmount: rule.maxAmount?.toString() || "",
@@ -121,7 +136,12 @@ const resetForm = () => {
     currency: "",
     feeRate: "",
     fixedFee: "",
-    feeMode: "INCLUSIVE",
+    extraFee: "0",
+    minFee: "",
+    maxFee: "",
+    feeType: "PERCENTAGE",
+    tiers: "[]",
+    feeMode: "PAYER_BEAR",
     minAmount: "0.01",
     maxAmount: "100000",
   };
@@ -148,13 +168,20 @@ onMounted(load);
       <input v-model="form.merchantId" placeholder="商户ID（可选）" />
       <input v-model="form.currency" placeholder="币种" />
       <select v-model="form.feeMode">
-        <option value="INCLUSIVE">手续费内含</option>
-        <option value="EXCLUSIVE">手续费另计</option>
+        <option value="PAYER_BEAR">付款方承担</option>
+        <option value="MERCHANT_BEAR">商户承担</option>
+        <option v-if="form.feeMode === 'INCLUSIVE'" value="INCLUSIVE">历史：手续费内含</option>
+        <option v-if="form.feeMode === 'EXCLUSIVE'" value="EXCLUSIVE">历史：手续费另计</option>
       </select>
-      <input v-model="form.feeRate" type="number" step="0.0001" placeholder="费率（%）" />
-      <input v-model="form.fixedFee" type="number" step="0.01" placeholder="固定费用" />
-      <input v-model="form.minAmount" type="number" step="0.01" placeholder="最小金额" />
-      <input v-model="form.maxAmount" type="number" step="0.01" placeholder="最大金额" />
+      <select v-model="form.feeType"><option value="FIXED">固定手续费</option><option value="PERCENTAGE">比例手续费</option><option value="TIERED">阶梯手续费</option><option v-if="form.feeType === 'COMBINED'" value="COMBINED">历史组合手续费</option></select>
+      <input v-if="form.feeType === 'PERCENTAGE' || form.feeType === 'COMBINED'" v-model="form.feeRate" type="number" step="0.0001" placeholder="费率（0.02 表示 2%）" />
+      <input v-if="form.feeType === 'FIXED' || form.feeType === 'COMBINED'" v-model="form.fixedFee" type="number" step="0.01" placeholder="固定费用" />
+      <input v-if="form.feeType === 'TIERED'" v-model="form.tiers" placeholder='阶梯 JSON，例如 [{"minAmount":0,"maxAmount":100,"feeRate":0.02,"fixedFee":0}]' />
+      <input v-model="form.extraFee" type="number" step="0.01" placeholder="额外手续费" />
+      <input v-model="form.minFee" type="number" step="0.01" placeholder="最小手续费（可选）" />
+      <input v-model="form.maxFee" type="number" step="0.01" placeholder="最大手续费（可选）" />
+      <input v-model="form.minAmount" type="number" step="0.01" placeholder="最小交易金额" />
+      <input v-model="form.maxAmount" type="number" step="0.01" placeholder="最大交易金额" />
       <button v-if="hasPermission(editing ? 'pricing:update' : 'pricing:create')" class="primary-btn" :disabled="saving" @click="save">
         <Save :size="16" />{{ editing ? "保存规则" : "新增规则" }}
       </button>
@@ -167,7 +194,7 @@ onMounted(load);
         <div>
           <strong>{{ rule.productCode }} · {{ rule.currency }}</strong>
           <small>
-            {{ rule.feeMode === "INCLUSIVE" ? "手续费内含" : "手续费另计" }} · 费率 {{ rule.feeRate }} + 固定 {{ rule.fixedFee }}
+            {{ rule.feeMode === "INCLUSIVE" ? "手续费内含" : "手续费另计" }} · {{ rule.feeType === "FIXED" ? `固定 ${rule.fixedFee}` : rule.feeType === "PERCENTAGE" ? `比例 ${rule.feeRate}` : rule.feeType === "TIERED" ? `阶梯 ${rule.tiers?.length || 0} 档` : `组合 ${rule.feeRate} + ${rule.fixedFee}` }}
             {{ rule.minAmount || rule.maxAmount ? ` · 金额范围 ${rule.minAmount || "无限"} - ${rule.maxAmount || "无限"}` : "" }}
             {{ rule.merchantId ? ` · 商户 ${rule.merchantId}` : "" }}
           </small>

@@ -2,6 +2,17 @@ import { request } from "../../api";
 export type AdminRecord = Record<string, string | number | boolean>;
 export type OutboxEvent = { eventId: string; eventType: string; status: string; attemptCount: number; lastError?: string; deadAt?: string };
 export type ReconciliationDifference = { difference_id: string; bill_id: string; difference_type: string; expected_amount: number; actual_amount: number; status: string; reason?: string };
+export type SettlementBill = {
+  billId: string;
+  channelId: string;
+  billDate: string;
+  currency: string;
+  totalAmount: number;
+  totalCount: number;
+  status: "IMPORTED" | "MATCHED" | "DIFFERENCE";
+  importedAt: string;
+};
+export type SettlementBillDetail = SettlementBill & { lines: Array<Record<string, unknown>> };
 export type OperationAudit = { auditId: string; operatorId: string; action: string; resourceType: string; resourceId: string; requestId?: string; reason?: string; createdAt: string };
 export const getAdminList = (resource: string, params: { page?: number; pageSize?: number } = {}) => request<{ items: AdminRecord[]; page: number; pageSize: number; total: number }>(`/admin/v1/${resource}?${new URLSearchParams({ page: String(params.page || 1), pageSize: String(params.pageSize || 20) })}`);
 export const getDeadOutbox = () => request<{ items: OutboxEvent[] }>("/admin/v1/outbox/dead");
@@ -11,4 +22,10 @@ export const resolveReconciliationDifference = (id: string, reason: string) => r
 export const getOperationAudits = (params: { page?: number; pageSize?: number } = {}) =>
   request<{ items: OperationAudit[]; page: number; pageSize: number; total: number }>(`/admin/v1/audits?${new URLSearchParams({ page: String(params.page || 1), pageSize: String(params.pageSize || 20) })}`);
 export const importReconciliationBill = (payload: { billId: string; channelId: string; billDate: string; currency: string; totalAmount: number; totalCount: number; lines: Array<Record<string, unknown>> }) => request<Record<string, unknown>>("/admin/v1/reconciliation/bills", { method: "POST", body: JSON.stringify(payload) });
+export const updateReconciliationBill = (billId: string, payload: { billId?: string; channelId: string; billDate: string; currency: string; totalAmount: number; totalCount: number; lines: Array<Record<string, unknown>> }) =>
+  request<Record<string, unknown>>(`/admin/v1/reconciliation/bills/${encodeURIComponent(billId)}`, { method: "PUT", body: JSON.stringify(payload) });
+export const getSettlementBills = (params: { page?: number; pageSize?: number } = {}) =>
+  request<{ items: SettlementBill[]; page: number; pageSize: number; total: number }>(`/admin/v1/reconciliation/bills?${new URLSearchParams({ page: String(params.page || 1), pageSize: String(params.pageSize || 20) })}`);
+export const getSettlementBill = (billId: string) =>
+  request<SettlementBillDetail>(`/admin/v1/reconciliation/bills/${encodeURIComponent(billId)}`);
 export const reconcileBill = (billId: string) => request<Record<string, unknown>>(`/admin/v1/reconciliation/bills/${encodeURIComponent(billId)}/reconcile`, { method: "POST" });

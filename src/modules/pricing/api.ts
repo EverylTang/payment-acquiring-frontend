@@ -8,6 +8,11 @@ export interface PricingRule {
   currency: string;
   feeRate: number | null;
   fixedFee: number | null;
+  extraFee: number;
+  minFee: number | null;
+  maxFee: number | null;
+  feeType: "FIXED" | "PERCENTAGE" | "TIERED" | "COMBINED";
+  tiers: Array<{ minAmount: number; maxAmount: number; feeRate: number; fixedFee: number }>;
   feeMode: string;
   minAmount: number | null;
   maxAmount: number | null;
@@ -21,6 +26,11 @@ export interface PricingRuleRequest {
   currency: string;
   feeRate: number;
   fixedFee: number;
+  extraFee: number;
+  minFee?: number;
+  maxFee?: number;
+  feeType: "FIXED" | "PERCENTAGE" | "TIERED" | "COMBINED";
+  tiers?: Array<{ minAmount: number; maxAmount: number; feeRate: number; fixedFee: number }>;
   feeMode: string;
   minAmount?: number;
   maxAmount?: number;
