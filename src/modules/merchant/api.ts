@@ -57,7 +57,23 @@ export const deleteMerchantContact = (merchantId: string, contactId: number) => 
 export const getMerchantCredentials = (id: string) => request<MerchantCredential[]>(`/admin/v1/merchants/${encodeURIComponent(id)}/credentials`);
 export const rotateMerchantCredential = (id: string, credentialType: "API" | "WEBHOOK") => request<RotatedCredential>(`/admin/v1/merchants/${encodeURIComponent(id)}/credentials/rotate`, { method: "POST", body: JSON.stringify({ credentialType }) });
 export const revokeMerchantCredential = (id: string, credentialId: string) => request<void>(`/admin/v1/merchants/${encodeURIComponent(id)}/credentials/${encodeURIComponent(credentialId)}/revoke`, { method: "POST" });
-export const getMerchantProducts = (params: { page?: number; pageSize?: number } = {}) => request<PageResponse<MerchantProduct>>(`/admin/v1/merchant-products?${pageQuery(params)}`);
+type MerchantProductListParams = {
+  page?: number;
+  pageSize?: number;
+  merchantName?: string;
+  merchantId?: string;
+  productName?: string;
+  productCode?: string;
+  status?: string;
+};
+const merchantProductQuery = (params: MerchantProductListParams) => {
+  const query = new URLSearchParams({ page: String(params.page || 1), pageSize: String(params.pageSize || 20) });
+  (["merchantName", "merchantId", "productName", "productCode", "status"] as const).forEach((key) => {
+    if (params[key]) query.set(key, params[key]);
+  });
+  return query;
+};
+export const getMerchantProducts = (params: MerchantProductListParams = {}) => request<PageResponse<MerchantProduct>>(`/admin/v1/merchant-products?${merchantProductQuery(params)}`);
 export const bindMerchantProduct = (payload: { merchantId: string; productCode: string }) => request<MerchantProduct>("/admin/v1/merchant-products", { method: "POST", body: JSON.stringify(payload) });
 export const updateMerchantProduct = (id: string, payload: { merchantId: string; productCode: string }) => request<MerchantProduct>(`/admin/v1/merchant-products/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) });
 export const changeMerchantProductStatus = (id: string, status: string) => request<void>(`/admin/v1/merchant-products/${encodeURIComponent(id)}/status`, { method: "PATCH", body: JSON.stringify({ status }) });

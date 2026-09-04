@@ -26,17 +26,18 @@ import {
   WalletCards,
   XCircle,
 } from "lucide-vue-next";
-import { bindMerchantProduct, changeMerchantProductStatus, getMerchantProducts, updateMerchantProduct, type Merchant, type MerchantProduct } from "./modules/merchant/api";
+import { type Merchant } from "./modules/merchant/api";
 import { getProducts, type Product } from "./modules/product/api";
 import { getRoles, getUsers, type AdminUser } from "./modules/user/api";
 import { getPermissionCatalog, getRolePermissions, type AdminRole, type PermissionCatalog } from "./modules/permission/api";
 import { callbackOrder, cancelOrder, cancelPaymentAttempt, createOrder, createPaymentAttempt, getOrder, getOrderHealth, getOrderPage, getOrderStatistics, queryPaymentAttempt, retryPaymentAttempt, type CreateOrderRequest, type Order, type OrderPage, type PaymentAttempt } from "./modules/order/api";
 import { getChannelHealth, getOverview, getSnapshot, type DashboardOverview } from "./modules/dashboard/api";
-import { authState, hasPermission, signOut } from "./auth";
+import { authState, signOut } from "./auth";
 import { changePassword } from "./modules/auth/api";
 import { preferences, setLocale, setTheme, type AppLocale, type AppTheme } from "./preferences";
 import MerchantDetailView from "./modules/merchant/MerchantDetailView.vue";
 import MerchantManagementView from "./modules/merchant/MerchantManagementView.vue";
+import MerchantProductManagementView from "./modules/merchant/MerchantProductManagementView.vue";
 import UserManagementView from "./modules/user/UserManagementView.vue";
 import ProductManagementView from "./modules/product/ProductManagementView.vue";
 import PermissionManagementView from "./modules/permission/PermissionManagementView.vue";
@@ -78,15 +79,8 @@ const permissionCatalog = ref<PermissionCatalog | null>(null);
 const selectedRole = ref("ADMIN");
 const selectedMenuCodes = ref<string[]>([]);
 const selectedPermissionCodes = ref<string[]>([]);
-const merchantProducts = ref<MerchantProduct[]>([]);
-const merchantProductPage = ref({ page: 1, pageSize: 20, total: 0 });
-const editingMerchantProduct = ref<MerchantProduct | null>(null);
 const users = ref<AdminUser[]>([]);
 const roles = ref<AdminRole[]>([]);
-const bindingForm = ref({
-  merchantId: "merchant-demo",
-  productCode: "CARD-US-USD",
-});
 const orderPage = ref<OrderPage>({
   items: [],
   page: 1,
@@ -357,10 +351,6 @@ const loadPage = async (label: string) => {
     await loadOrders();
     return;
   }
-  if (label === "商户产品") {
-    await loadMerchantProducts();
-    return;
-  }
   if (label === "用户管理") {
     await loadUsers();
     return;
@@ -449,70 +439,6 @@ const loadUsers = async () => {
     notice.value = error instanceof Error ? error.message : "用户加载失败";
   } finally {
     listLoading.value = false;
-  }
-};
-const loadMerchantProducts = async (page = merchantProductPage.value.page) => {
-  listLoading.value = true;
-  try {
-    const result = await getMerchantProducts({
-      page,
-      pageSize: merchantProductPage.value.pageSize,
-    });
-    merchantProducts.value = result.items;
-    merchantProductPage.value = {
-      page: result.page,
-      pageSize: result.pageSize,
-      total: result.total,
-    };
-  } catch (error) {
-    notice.value = error instanceof Error ? error.message : "商户产品加载失败";
-  } finally {
-    listLoading.value = false;
-  }
-};
-const bindProduct = async () => {
-  const result = editingMerchantProduct.value
-    ? await run(
-        () =>
-          updateMerchantProduct(
-            editingMerchantProduct.value!.bindingId,
-            bindingForm.value,
-          ),
-        "商户产品已更新",
-      )
-    : await run(
-        () => bindMerchantProduct(bindingForm.value),
-        "商户产品绑定成功",
-      );
-  if (result) {
-    merchantProducts.value = editingMerchantProduct.value
-      ? merchantProducts.value.map((item) =>
-          item.bindingId === result.bindingId ? result : item,
-        )
-      : [result, ...merchantProducts.value];
-    editingMerchantProduct.value = null;
-  }
-};
-const editMerchantProduct = (item: MerchantProduct) => {
-  editingMerchantProduct.value = item;
-  bindingForm.value = {
-    merchantId: item.merchantId,
-    productCode: item.productCode,
-  };
-};
-const toggleMerchantProduct = async (item: MerchantProduct) => {
-  busy.value = true;
-  try {
-    await changeMerchantProductStatus(
-      item.bindingId,
-      item.status === "ACTIVE" ? "DISABLED" : "ACTIVE",
-    );
-    item.status = item.status === "ACTIVE" ? "DISABLED" : "ACTIVE";
-    notice.value = "商户产品状态已更新";
-  } catch (error) {
-    notice.value = error instanceof Error ? error.message : "商户产品状态更新失败";
-  } finally {
-    busy.value = false;
   }
 };
 const loadOrders = async (page = 1) => {
@@ -1138,43 +1064,10 @@ onMounted(async () => {
           </div>
         </div>
       </section> -->
-      <section v-else-if="active === '商户产品'" class="panel workspace-panel">
-        <div class="panel-title">
-          <div>
-            <span class="eyebrow">MERCHANT PRODUCT</span>
-            <h3>商户产品绑定</h3>
-          </div>
-          <button class="outline-btn" @click="loadMerchantProducts()">
-            <RefreshCw :size="16" />刷新
-          </button>
-        </div>
-        <div class="form-grid binding-form">
-          <input v-model="bindingForm.merchantId" placeholder="商户 ID" /><input
-            v-model="bindingForm.productCode"
-            placeholder="产品编码"
-          /><button class="primary-btn" @click="bindProduct">{{ editingMerchantProduct ? "保存绑定" : "绑定产品" }}</button>
-        </div>
-        <div v-if="listLoading" class="empty">
-          <LoaderCircle class="spin" :size="22" />加载中…
-        </div>
-        <div v-else-if="!merchantProducts.length" class="empty">
-          暂无商户产品绑定
-        </div>
-        <div v-else class="record-list">
-          <div
-            v-for="item in merchantProducts"
-            :key="item.bindingId"
-            class="record-row"
-          >
-            <div>
-              <strong>{{ item.merchantName }} · {{ item.productName }}</strong
-              ><small>{{ item.merchantId }} / {{ item.productCode }} · 支付方式 {{ item.supportedPaymentMethods || "未配置" }}</small>
-            </div>
-            <span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span><div class="button-row"><button v-if="hasPermission('merchant-product:update')" class="outline-btn" @click="editMerchantProduct(item)">编辑</button><button v-if="hasPermission('merchant-product:status')" class="outline-btn" @click="toggleMerchantProduct(item)">{{ item.status === "ACTIVE" ? "停用" : "启用" }}</button></div>
-          </div>
-        </div>
-        <div v-if="merchantProductPage.total > merchantProductPage.pageSize" class="pagination"><button class="outline-btn" :disabled="merchantProductPage.page <= 1" @click="loadMerchantProducts(merchantProductPage.page - 1)">上一页</button><span>第 {{ merchantProductPage.page }} / {{ Math.ceil(merchantProductPage.total / merchantProductPage.pageSize) }} 页，共 {{ merchantProductPage.total }} 条绑定</span><button class="outline-btn" :disabled="merchantProductPage.page >= Math.ceil(merchantProductPage.total / merchantProductPage.pageSize)" @click="loadMerchantProducts(merchantProductPage.page + 1)">下一页</button></div>
-      </section>
+      <MerchantProductManagementView
+        v-else-if="active === '商户产品'"
+        @notice="notice = $event"
+      />
       <OperationsView
         v-else-if="active === '运营处置'"
         @notice="notice = $event"

@@ -1564,6 +1564,7 @@ nav button.active::before { background: var(--accent); }
 .management-form-item { display: grid; min-width: 0; gap: 7px; }
 .management-form-item > span { color: #606266; font-size: 13px; line-height: 20px; }
 .management-form-item input, .management-form-item select { width: 100%; min-width: 0; height: 32px; padding: 0 11px; border: 1px solid #dcdfe6; border-radius: 4px; color: #606266; background: #fff; font: inherit; font-size: 13px; outline: none; transition: border-color .15s, box-shadow .15s; }
+.management-form-item .el-select, .form-field .el-select { width: 100%; }
 .management-form-item input:focus, .management-form-item select:focus, .management-input:focus-within { border-color: #409eff; box-shadow: 0 0 0 2px rgba(64, 158, 255, .16); }
 .management-input { display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px; border: 1px solid #dcdfe6; border-radius: 4px; color: #909399; background: #fff; transition: border-color .15s, box-shadow .15s; }
 .management-input input { height: 30px; padding: 0; border: 0; box-shadow: none; }
@@ -1582,6 +1583,8 @@ nav button.active::before { background: var(--accent); }
 .menu-name-column { width: 15%; }.menu-code-column { width: 18%; }.menu-type-column { width: 9%; }.menu-route-column { width: 14%; }.menu-visible-column { width: 8%; }.menu-status-column { width: 9%; }
 .country-name-column { width: 25%; }.country-code-column { width: 14%; }.country-region-column { width: 24%; }.country-status-column { width: 14%; }
 .product-name-column { width: 17%; }.product-type-column { width: 12%; }.product-market-column { width: 12%; }.product-method-column { width: 18%; }.product-capability-column { width: 8%; }.product-status-column { width: 10%; }
+.merchant-product-merchant-column { width: 17%; }.merchant-product-product-column { width: 17%; }.merchant-product-method-column { width: 20%; }.merchant-product-status-column { width: 10%; }.merchant-product-time-column { width: 17%; }
+.merchant-product-table td small { display: block; margin-top: 3px; color: #909399; font-size: 12px; }
 .danger-outline-btn { border-color: #f56c6c; color: #f56c6c; }.danger-outline-btn:hover:not(:disabled) { border-color: #f56c6c; color: #fff; background: #f56c6c; }
 :root[data-theme="midnight"] .management-filter-form { border-color: var(--line); background: var(--surface); }
 :root[data-theme="midnight"] .management-list-summary { color: var(--ink); }
