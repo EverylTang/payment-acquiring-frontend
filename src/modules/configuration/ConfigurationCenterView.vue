@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { Check, Eye, FileDiff, Pencil, Plus, RefreshCw, RotateCcw, Save, Send, ToggleLeft, Trash2, Upload } from "lucide-vue-next";
+import { Pencil, Plus, RefreshCw, Save, ToggleLeft, Trash2 } from "lucide-vue-next";
 import { ElForm, ElFormItem, ElInput, ElInputNumber, ElOption, ElPagination, ElSelect } from "element-plus";
 import { authState } from "../../auth";
 import {
@@ -10,17 +10,14 @@ import {
   changeRoutingRuleStatus,
   createChannel,
   createPricingRule,
-  createRelease,
   createRiskPolicy,
   createRoutingRule,
   getChannelCredentialBindings,
   getChannels,
   getPricingRules,
-  getReleaseDiff,
   getReleases,
   getRiskPolicies,
   getRoutingRules,
-  transitionRelease,
   updateChannel,
   updatePricingRule,
   updateRoutingRule,
@@ -30,21 +27,11 @@ import {
   type RiskPolicy,
   type RoutingRule,
 } from "./api";
-import AppDialog from "../../components/AppDialog.vue";
 import AppPagination from "../../components/AppPagination.vue";
 import AppDrawer from "../../components/AppDrawer.vue";
 import { getProducts, type Product } from "../product/api";
 import { getMerchants, type Merchant } from "../merchant/api";
 import { getActiveCurrencies, type Currency } from "../master-data/api";
-import {
-  getSettlementBill,
-  getSettlementBills,
-  importReconciliationBill,
-  reconcileBill,
-  updateReconciliationBill,
-  type SettlementBill,
-  type SettlementBillDetail,
-} from "../operations/api";
 
 const props = defineProps<{ section: "routing" | "pricing" | "risk" }>();
 const emit = defineEmits<{ notice: [message: string] }>();
@@ -62,22 +49,12 @@ const releases = ref<ConfigRelease[]>([]);
 const channelPage = ref({ current: 1, pageSize: 20, total: 0 });
 const routePage = ref({ current: 1, pageSize: 20, total: 0 });
 const pricingPage = ref({ current: 1, pageSize: 20, total: 0 });
-const settlementPage = ref({ current: 1, pageSize: 20, total: 0 });
 const policyPage = ref({ current: 1, pageSize: 20, total: 0 });
-const releasePage = ref({ current: 1, pageSize: 20, total: 0 });
-const activeView = ref<"records" | "releases">("records");
 const routingView = ref<"channels" | "routes">("channels");
-const pricingView = ref<"pricing" | "settlements">("pricing");
-const drawer = ref<"config" | "route" | "release" | "settlement-import" | "settlement-detail" | null>(null);
-const selectedDiff = ref<Record<string, unknown> | null>(null);
-const selectedBill = ref<SettlementBillDetail | null>(null);
-const settlementBills = ref<SettlementBill[]>([]);
+const drawer = ref<"config" | "route" | null>(null);
 const editingChannel = ref<Channel | null>(null);
 const editingRoute = ref<RoutingRule | null>(null);
 const editingPricing = ref<PricingRule | null>(null);
-const editingSettlementBill = ref<SettlementBillDetail | null>(null);
-const releaseConfig = ref("{}");
-const releaseReason = ref("");
 const channelForm = ref({ channelId: "", name: "", provider: "", requestUrl: "", signatureProfile: "DEFAULT", country: "US", currency: "USD", paymentMethod: "CARD", minAmount: 0.01, maxAmount: 100000 });
 const channelConfigEntries = ref<Array<{ key: string; value: string }>>([]);
 const channelCredentialEntries = ref<Array<{ credentialRole: string; secretRef: string; keyVersion: string }>>([]);
@@ -97,7 +74,6 @@ type PricingForm = { ruleId: string; releaseId: string; productCode: string; mer
 const newPricingForm = (): PricingForm => ({ ruleId: "", releaseId: "", productCode: "", merchantId: "", channelId: "", currency: "USD", feeType: "PERCENTAGE", feeRate: 0, fixedFee: 0, extraFee: 0, minFee: undefined, maxFee: undefined, tiers: [], feeMode: "PAYER_BEAR", minAmount: 0.01, maxAmount: 100000 });
 const pricingForm = ref(newPricingForm());
 const riskForm = ref({ policyId: "", releaseId: "", name: "", priority: 100, decision: "REVIEW", condition: "{}" });
-const settlementForm = ref({ billId: "", channelId: "", billDate: new Date().toISOString().slice(0, 10), currency: "USD", totalAmount: 0, totalCount: 0, lines: "[]" });
 
 const canOperate = computed(() => {
   const roles = authState.user?.roles || [];
@@ -106,14 +82,8 @@ const canOperate = computed(() => {
   if (props.section === "pricing") return roles.includes("OPS") || roles.includes("FINANCE");
   return roles.includes("RISK");
 });
-const canCreateRelease = computed(() =>
-  authState.user?.roles.some((role) => ["ADMIN", "OPS"].includes(role)) ?? false,
-);
 const canApprove = computed(() => authState.user?.roles.includes("ADMIN") ?? false);
-const canManageSettlement = computed(() =>
-  authState.user?.roles.some((role) => ["ADMIN", "OPS"].includes(role)) ?? false,
-);
-const title = computed(() => ({ routing: "路由与渠道", pricing: "费率与结算", risk: "风控工作台" })[props.section]);
+const title = computed(() => ({ routing: "路由与渠道", pricing: "费率管理", risk: "风控工作台" })[props.section]);
 const createLabel = computed(() => ({ routing: routingView.value === "channels" ? "新增渠道" : "新增路由规则", pricing: "新增费率规则", risk: "新增风控策略" })[props.section]);
 const configDrawerTitle = computed(() => editingChannel.value ? "编辑渠道" : "新增渠道");
 const routeDrawerTitle = computed(() => editingRoute.value ? "编辑路由规则" : "新增路由规则");
@@ -123,14 +93,12 @@ const activeChannels = computed(() => channels.value.filter((item) => item.statu
 const activeRoutes = computed(() => routes.value.filter((item) => item.status === "ACTIVE").length);
 const merchantRoutes = computed(() => routes.value.filter((item) => item.merchantId).length);
 const activePricingRules = computed(() => pricing.value.filter((item) => item.status === "ACTIVE").length);
-const differenceBills = computed(() => settlementBills.value.filter((item) => item.status === "DIFFERENCE").length);
 const activeProducts = computed(() => products.value.filter((item) => item.status === "ACTIVE"));
 const activeMerchants = computed(() => merchants.value.filter((item) => item.status === "ACTIVE"));
 const activeChannelOptions = computed(() => channels.value.filter((item) => item.status === "ACTIVE"));
 const hasSelectedProduct = computed(() => activeProducts.value.some((item) => item.productCode === pricingForm.value.productCode));
 const hasSelectedMerchant = computed(() => activeMerchants.value.some((item) => item.merchantId === pricingForm.value.merchantId));
 const hasSelectedChannel = computed(() => activeChannelOptions.value.some((item) => item.channelId === pricingForm.value.channelId));
-const hasSelectedSettlementChannel = computed(() => activeChannelOptions.value.some((item) => item.channelId === settlementForm.value.channelId));
 const hasSelectedPricingCurrency = computed(() => currencies.value.some((item) => item.code === pricingForm.value.currency));
 const formatAmount = (amount: number, currency: string) => new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(amount || 0)) + ` ${currency}`;
 const formatRate = (rate: number) => `${(Number(rate || 0) * 100).toFixed(4).replace(/0+$/, "").replace(/\.$/, "")}%`;
@@ -183,14 +151,13 @@ const channelCredentialBindings = () => {
 const load = async () => {
   loading.value = true;
   try {
-    const requests: Promise<unknown>[] = [getReleases({ page: releasePage.value.current, pageSize: releasePage.value.pageSize })];
+    const requests: Promise<unknown>[] = [getReleases({ page: 1, pageSize: 100 })];
     if (props.section === "routing") requests.push(
       getChannels({ page: channelPage.value.current, pageSize: channelPage.value.pageSize }),
       getRoutingRules({ page: routePage.value.current, pageSize: routePage.value.pageSize }),
     );
     if (props.section === "pricing") requests.push(
       getPricingRules({ page: pricingPage.value.current, pageSize: pricingPage.value.pageSize }),
-      getSettlementBills({ page: settlementPage.value.current, pageSize: settlementPage.value.pageSize }),
       getProducts({ page: 1, pageSize: 100, status: "ACTIVE" }),
       getMerchants({ page: 1, pageSize: 100, status: "ACTIVE" }),
       getChannels({ page: 1, pageSize: 100 }),
@@ -198,9 +165,7 @@ const load = async () => {
     );
     if (props.section === "risk") requests.push(getRiskPolicies({ page: policyPage.value.current, pageSize: policyPage.value.pageSize }));
     const values = await Promise.all(requests);
-    const releaseResult = values[0] as { items: ConfigRelease[]; page: number; pageSize: number; total: number };
-    releases.value = releaseResult.items;
-    releasePage.value = { current: releaseResult.page, pageSize: releaseResult.pageSize, total: releaseResult.total };
+    releases.value = (values[0] as { items: ConfigRelease[] }).items;
     if (props.section === "routing") {
       const channelResult = values[1] as { items: Channel[]; page: number; pageSize: number; total: number };
       const routeResult = values[2] as { items: RoutingRule[]; page: number; pageSize: number; total: number };
@@ -211,15 +176,12 @@ const load = async () => {
     }
     if (props.section === "pricing") {
       const pricingResult = values[1] as { items: PricingRule[]; page: number; pageSize: number; total: number };
-      const settlementResult = values[2] as { items: SettlementBill[]; page: number; pageSize: number; total: number };
-      const productResult = values[3] as { items: Product[] };
-      const merchantResult = values[4] as { items: Merchant[] };
-      const channelResult = values[5] as { items: Channel[] };
-      const currencyResult = values[6] as Currency[];
+      const productResult = values[2] as { items: Product[] };
+      const merchantResult = values[3] as { items: Merchant[] };
+      const channelResult = values[4] as { items: Channel[] };
+      const currencyResult = values[5] as Currency[];
       pricing.value = pricingResult.items;
       pricingPage.value = { current: pricingResult.page, pageSize: pricingResult.pageSize, total: pricingResult.total };
-      settlementBills.value = settlementResult.items;
-      settlementPage.value = { current: settlementResult.page, pageSize: settlementResult.pageSize, total: settlementResult.total };
       products.value = productResult.items;
       merchants.value = merchantResult.items;
       channels.value = channelResult.items;
@@ -236,13 +198,13 @@ const load = async () => {
     loading.value = false;
   }
 };
-const changePage = (kind: "channel" | "route" | "pricing" | "settlement" | "policy" | "release", current: number) => {
-  const pages = { channel: channelPage, route: routePage, pricing: pricingPage, settlement: settlementPage, policy: policyPage, release: releasePage };
+const changePage = (kind: "channel" | "route" | "pricing" | "policy", current: number) => {
+  const pages = { channel: channelPage, route: routePage, pricing: pricingPage, policy: policyPage };
   pages[kind].value.current = current;
   return load();
 };
-const changePageSize = (kind: "channel" | "route" | "release", pageSize: number) => {
-  const pages = { channel: channelPage, route: routePage, release: releasePage };
+const changePageSize = (kind: "channel" | "route", pageSize: number) => {
+  const pages = { channel: channelPage, route: routePage };
   pages[kind].value.pageSize = pageSize;
   pages[kind].value.current = 1;
   return load();
@@ -259,11 +221,6 @@ const perform = async (action: () => Promise<unknown>, success?: string) => {
     saving.value = false;
   }
 };
-const createConfigRelease = () => perform(async () => {
-  if (!releaseReason.value.trim()) throw new Error("请填写创建原因");
-  await createRelease(parseObject(releaseConfig.value, "发布配置"), releaseReason.value.trim());
-  releaseReason.value = "";
-}, "草稿版本已创建，可继续添加规则");
 const createConfigItem = () => perform(async () => {
   if (props.section === "routing") {
     const configuration = channelConfiguration();
@@ -425,92 +382,6 @@ const toggle = (kind: "channel" | "route" | "pricing" | "risk", id: string, stat
     if (kind === "pricing") return changePricingRuleStatus(id, target);
     return changeRiskPolicyStatus(id, target);
   }, "状态已更新");
-const releaseLabels = { submit: "提交审核", approve: "审核通过", publish: "正式发布", rollback: "回滚生成草稿" } as const;
-const pendingRelease = ref<{ release: ConfigRelease; action: keyof typeof releaseLabels } | null>(null);
-const releaseAction = (release: ConfigRelease, action: keyof typeof releaseLabels) => {
-  pendingRelease.value = { release, action };
-};
-const doReleaseAction = (reason: string) => {
-  const pending = pendingRelease.value;
-  pendingRelease.value = null;
-  if (!pending || !reason) return;
-  const label = releaseLabels[pending.action];
-  return perform(
-    () => transitionRelease(pending.release.releaseId, pending.action, reason),
-    `${label}完成`,
-  );
-};
-const showDiff = async (release: ConfigRelease) => {
-  try {
-    selectedDiff.value = await getReleaseDiff(release.releaseId);
-  } catch (error) {
-    emit("notice", error instanceof Error ? error.message : "差异加载失败");
-  }
-};
-const showSettlementBill = async (billId: string) => {
-  try {
-    selectedBill.value = await getSettlementBill(billId);
-    drawer.value = "settlement-detail";
-  } catch (error) {
-    emit("notice", error instanceof Error ? error.message : "账单详情加载失败");
-  }
-};
-const editSettlementBill = async (billId: string) => {
-  try {
-    const bill = await getSettlementBill(billId);
-    editingSettlementBill.value = bill;
-    settlementForm.value = {
-      billId: bill.billId,
-      channelId: bill.channelId,
-      billDate: bill.billDate,
-      currency: bill.currency,
-      totalAmount: bill.totalAmount,
-      totalCount: bill.totalCount,
-      lines: JSON.stringify(bill.lines.map((line) => ({
-        channelOrderId: line.channelOrderId || line.channel_order_id,
-        merchantId: line.merchantId || line.merchant_id,
-        orderId: line.orderId || line.order_id,
-        transactionType: line.transactionType || line.transaction_type,
-        status: line.status,
-        amount: line.amount,
-        currency: line.currency,
-      })), null, 2),
-    };
-    drawer.value = "settlement-import";
-  } catch (error) {
-    emit("notice", error instanceof Error ? error.message : "账单详情加载失败");
-  }
-};
-const openSettlementImport = () => {
-  editingSettlementBill.value = null;
-  settlementForm.value = { billId: "", channelId: "", billDate: new Date().toISOString().slice(0, 10), currency: "USD", totalAmount: 0, totalCount: 0, lines: "[]" };
-  drawer.value = "settlement-import";
-};
-const importSettlementBill = () => perform(async () => {
-  let lines: unknown;
-  try {
-    lines = JSON.parse(settlementForm.value.lines);
-  } catch {
-    throw new Error("逐笔明细必须是 JSON 数组");
-  }
-  if (!Array.isArray(lines)) throw new Error("逐笔明细必须是 JSON 数组");
-  const payload = { ...settlementForm.value, lines: lines as Array<Record<string, unknown>> };
-  if (editingSettlementBill.value) {
-    await updateReconciliationBill(editingSettlementBill.value.billId, payload);
-    editingSettlementBill.value = null;
-  } else {
-    await importReconciliationBill(payload);
-  }
-  settlementPage.value.current = 1;
-  drawer.value = null;
-}, "结算账单已导入");
-const runSettlementReconciliation = (billId: string) => perform(async () => {
-  const result = await reconcileBill(billId);
-  const status = String(result.status || "已完成");
-  emit("notice", `账单对账完成：${status}`);
-  await load();
-  selectedBill.value = await getSettlementBill(billId);
-});
 onMounted(load);
 </script>
 
@@ -519,18 +390,11 @@ onMounted(load);
     <div class="panel-title">
       <div><span class="eyebrow">CONFIGURATION CENTER</span><h3>{{ title }}</h3></div>
       <div class="button-row">
-        <button v-if="activeView === 'records' && canOperate && !(section === 'pricing' && pricingView === 'settlements')" class="primary-btn" @click="section === 'routing' ? (routingView === 'routes' ? openRouteCreate() : openChannelCreate()) : section === 'pricing' ? openPricingCreate() : (drawer = 'config')">{{ createLabel }}</button>
-        <button v-if="activeView === 'records' && section === 'pricing' && pricingView === 'settlements' && canManageSettlement" class="primary-btn" @click="openSettlementImport"><Upload :size="16" />导入结算账单</button>
-        <button v-if="activeView === 'releases' && canCreateRelease" class="primary-btn" @click="drawer = 'release'">创建草稿</button>
+        <button v-if="canOperate" class="primary-btn" @click="section === 'routing' ? (routingView === 'routes' ? openRouteCreate() : openChannelCreate()) : section === 'pricing' ? openPricingCreate() : (drawer = 'config')">{{ createLabel }}</button>
         <button class="icon-btn" title="刷新" :disabled="loading" @click="load"><RefreshCw :class="{ spin: loading }" :size="16" /></button>
       </div>
     </div>
-    <div class="workspace-tabs" role="tablist">
-      <button :class="{ active: activeView === 'records' }" @click="activeView = 'records'">列表管理</button>
-      <button :class="{ active: activeView === 'releases' }" @click="activeView = 'releases'">版本发布</button>
-    </div>
-
-    <section v-if="activeView === 'records'" class="configuration-subpage">
+    <section class="configuration-subpage">
       <div v-if="section === 'routing'" class="configuration-summary-grid">
         <article class="configuration-summary-card"><span>可用渠道</span><strong>{{ activeChannels }}</strong><small>当前页 {{ channels.length }} 个渠道</small></article>
         <article class="configuration-summary-card"><span>生效路由</span><strong>{{ activeRoutes }}</strong><small>当前页 {{ routes.length }} 条规则</small></article>
@@ -539,9 +403,6 @@ onMounted(load);
       </div>
       <div v-else-if="section === 'pricing'" class="configuration-summary-grid">
         <article class="configuration-summary-card"><span>生效费率</span><strong>{{ activePricingRules }}</strong><small>当前页 {{ pricing.length }} 条规则</small></article>
-        <article class="configuration-summary-card"><span>结算账单</span><strong>{{ settlementPage.total }}</strong><small>按账期归档的渠道数据</small></article>
-        <article class="configuration-summary-card"><span>待处理差异</span><strong :class="{ 'summary-alert': differenceBills }">{{ differenceBills }}</strong><small>当前页对账结果</small></article>
-        <article class="configuration-summary-card"><span>发布控制</span><strong>{{ draftReleases.length }}</strong><small>草稿规则待审核发布</small></article>
       </div>
       <div v-if="section === 'routing'" class="workspace-tabs workspace-tabs-compact" role="tablist">
         <button :class="{ active: routingView === 'channels' }" @click="routingView = 'channels'">渠道</button>
@@ -575,23 +436,12 @@ onMounted(load);
         <div class="management-pagination configuration-pagination"><ElPagination background layout="sizes, total, prev, pager, next" :current-page="routePage.current" :page-size="routePage.pageSize" :page-sizes="[20, 50, 100]" :total="routePage.total" :hide-on-single-page="false" @current-change="(current) => changePage('route', current)" @size-change="(size) => changePageSize('route', size)" /></div>
       </template>
       <template v-else-if="section === 'pricing'">
-        <div class="workspace-tabs workspace-tabs-compact" role="tablist">
-          <button :class="{ active: pricingView === 'pricing' }" @click="pricingView = 'pricing'">费率规则</button>
-          <button :class="{ active: pricingView === 'settlements' }" @click="pricingView = 'settlements'">结算账单</button>
-        </div>
-        <template v-if="pricingView === 'pricing'">
+        <template>
           <div class="section-heading"><div><span class="eyebrow">PRICING CONTROL</span><h4>费率规则</h4></div><span>{{ pricingPage.total }} 条规则</span></div>
           <div v-if="loading" class="empty">加载中…</div>
           <div v-else-if="!pricing.length" class="empty">暂无费率规则</div>
           <div v-else class="configuration-table-wrap"><table class="data-table configuration-table"><thead><tr><th>适用范围</th><th>费率结构</th><th>交易金额限制</th><th>版本</th><th>状态</th><th class="actions">操作</th></tr></thead><tbody><tr v-for="item in pricing" :key="item.ruleId"><td><strong>{{ item.productCode }}</strong><small class="table-subtext">{{ item.merchantId || "全商户" }} · {{ item.channelId || "全部渠道" }} · {{ item.currency }}</small></td><td><strong>{{ pricingStructure(item) }}</strong><small class="table-subtext">{{ pricingLimits(item) }} · {{ item.feeMode }}</small></td><td>{{ formatAmount(item.minAmount, item.currency) }} - {{ formatAmount(item.maxAmount, item.currency) }}</td><td><span class="mono">v{{ item.releaseVersion }} · {{ item.ruleId }}</span></td><td><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span></td><td class="actions"><button v-if="canOperate" class="icon-btn" title="编辑费率规则" @click="editPricing(item)"><Pencil :size="16" /></button><button v-if="canApprove" class="icon-btn" title="切换规则状态" @click="toggle('pricing', item.ruleId, item.status)"><ToggleLeft :size="17" /></button></td></tr></tbody></table></div>
           <AppPagination :page="pricingPage.current" :page-size="pricingPage.pageSize" :total="pricingPage.total" noun="条规则" @change="(current) => changePage('pricing', current)" />
-        </template>
-        <template v-else>
-          <div class="section-heading"><div><span class="eyebrow">SETTLEMENT CONTROL</span><h4>渠道结算账单</h4></div><span>{{ settlementPage.total }} 个账单</span></div>
-          <div v-if="loading" class="empty">加载中…</div>
-          <div v-else-if="!settlementBills.length" class="empty">暂无渠道结算账单</div>
-          <div v-else class="configuration-table-wrap"><table class="data-table configuration-table settlement-table"><thead><tr><th>账单与渠道</th><th>账期</th><th class="num">账单金额</th><th class="num">笔数</th><th>对账状态</th><th>导入时间</th><th class="actions">操作</th></tr></thead><tbody><tr v-for="item in settlementBills" :key="item.billId"><td><strong>{{ item.billId }}</strong><small class="table-subtext">{{ item.channelId }}</small></td><td>{{ item.billDate }}<small class="table-subtext">{{ item.currency }}</small></td><td class="num settlement-amount">{{ formatAmount(item.totalAmount, item.currency) }}</td><td class="num">{{ item.totalCount }}</td><td><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span></td><td><span class="table-date">{{ item.importedAt }}</span></td><td class="actions"><button class="icon-btn" title="查看账单明细" @click="showSettlementBill(item.billId)"><Eye :size="16" /></button><button v-if="canManageSettlement && item.status !== 'MATCHED'" class="icon-btn" title="编辑结算账单" @click="editSettlementBill(item.billId)"><Pencil :size="16" /></button><button v-if="canManageSettlement" class="outline-btn table-action-btn" :disabled="saving" @click="runSettlementReconciliation(item.billId)">对账</button></td></tr></tbody></table></div>
-          <AppPagination :page="settlementPage.current" :page-size="settlementPage.pageSize" :total="settlementPage.total" noun="个账单" @change="(current) => changePage('settlement', current)" />
         </template>
       </template>
       <template v-else>
@@ -603,16 +453,7 @@ onMounted(load);
       </template>
     </section>
 
-    <section v-else class="configuration-subpage">
-      <div class="section-heading"><div><span class="eyebrow">RELEASE CONTROL</span><h4>配置版本与发布</h4></div><span>{{ releasePage.total }} 个版本</span></div>
-      <div v-if="loading" class="empty">加载中…</div>
-      <div v-else-if="!releases.length" class="empty">暂无发布版本</div>
-      <div v-else class="record-list"><div v-for="item in releases" :key="item.releaseId" class="release-row"><div><strong>版本 v{{ item.versionNo }}</strong><small>{{ item.releaseId }} · 创建人 {{ item.createdBy }} · {{ item.createdAt }}</small></div><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span><div class="button-row"><button class="icon-btn" title="查看版本差异" @click="showDiff(item)"><FileDiff :size="16" /></button><button v-if="canCreateRelease && item.status === 'DRAFT'" class="icon-btn" title="提交审核" @click="releaseAction(item, 'submit')"><Send :size="16" /></button><button v-if="canApprove && item.status === 'IN_REVIEW'" class="icon-btn" title="审核通过" @click="releaseAction(item, 'approve')"><Check :size="16" /></button><button v-if="canApprove && item.status === 'APPROVED'" class="icon-btn" title="正式发布" @click="releaseAction(item, 'publish')"><Send :size="16" /></button><button v-if="canApprove && item.status === 'PUBLISHED'" class="icon-btn" title="回滚生成草稿" @click="releaseAction(item, 'rollback')"><RotateCcw :size="16" /></button></div></div></div>
-      <div class="management-pagination configuration-pagination"><ElPagination background layout="sizes, total, prev, pager, next" :current-page="releasePage.current" :page-size="releasePage.pageSize" :page-sizes="[20, 50, 100]" :total="releasePage.total" :hide-on-single-page="false" @current-change="(current) => changePage('release', current)" @size-change="(size) => changePageSize('release', size)" /></div>
-      <pre v-if="selectedDiff">{{ JSON.stringify(selectedDiff, null, 2) }}</pre>
-    </section>
-
-    <AppDrawer v-if="drawer" :title="drawer === 'release' ? '创建发布草稿' : drawer === 'route' ? routeDrawerTitle : drawer === 'config' && section === 'routing' ? configDrawerTitle : drawer === 'config' && section === 'pricing' ? pricingDrawerTitle : drawer === 'settlement-import' ? (editingSettlementBill ? '编辑渠道结算账单' : '导入渠道结算账单') : drawer === 'settlement-detail' ? '结算账单详情' : createLabel" :description="drawer?.startsWith('settlement') ? 'SETTLEMENT CONTROL' : 'CONFIGURATION'" @close="drawer = null">
+    <AppDrawer v-if="drawer" :title="drawer === 'route' ? routeDrawerTitle : drawer === 'config' && section === 'routing' ? configDrawerTitle : drawer === 'config' && section === 'pricing' ? pricingDrawerTitle : createLabel" description="CONFIGURATION" @close="drawer = null">
       <div v-if="drawer === 'config'" class="drawer-section">
         <ElForm v-if="section === 'routing'" :model="channelForm" label-position="top" class="configuration-element-form">
           <div class="drawer-section-heading"><div><h4>{{ editingChannel ? '渠道基础配置' : '渠道与接入能力' }}</h4><small>{{ editingChannel ? '渠道标识和接入范围创建后保持不变；此处更新服务商、请求地址、签名方案和运行参数。' : '创建后即可在路由规则中选择该渠道。' }}</small></div></div>
@@ -660,20 +501,6 @@ onMounted(load);
         <button v-if="section !== 'routing' && section !== 'pricing'" class="primary-btn drawer-submit" :disabled="saving" @click="createConfigItem">{{ createLabel }}</button>
       </div>
       <div v-else-if="drawer === 'route'" class="drawer-section"><ElForm :model="routeForm" label-position="top" class="configuration-element-form"><div class="drawer-section-heading"><div><h4>{{ editingRoute ? '路由策略编辑' : '路由策略定义' }}</h4><small>{{ editingRoute ? `正在编辑 ${editingRoute.ruleId}，保持发布版本 v${editingRoute.releaseVersion} 不变。` : '规则仅可关联至草稿版本，发布后按版本统一生效。' }}</small></div></div><div class="drawer-form-grid"><ElFormItem label="规则 ID" required><ElInput v-model="routeForm.ruleId" :disabled="!!editingRoute" placeholder="例如 ROUTE_CARD_US_001" /></ElFormItem><ElFormItem v-if="!editingRoute" label="草稿版本" required><ElSelect v-model="routeForm.releaseId" placeholder="选择草稿版本"><ElOption v-for="item in draftReleases" :key="item.releaseId" :label="`v${item.versionNo} · ${item.releaseId}`" :value="item.releaseId" /></ElSelect></ElFormItem><ElFormItem label="产品编码" required><ElInput v-model="routeForm.productCode" placeholder="产品编码" /></ElFormItem><ElFormItem label="商户 ID"><ElInput v-model="routeForm.merchantId" placeholder="留空表示默认商户池" /></ElFormItem><ElFormItem label="目标渠道 ID" required><ElInput v-model="routeForm.channelId" placeholder="从渠道列表复制 ID" /></ElFormItem><ElFormItem label="支付方式" required><ElInput v-model="routeForm.paymentMethod" placeholder="CARD" /></ElFormItem><ElFormItem label="国家 / 地区"><ElInput v-model="routeForm.country" maxlength="8" placeholder="US，留空表示全区域" @input="routeForm.country = routeForm.country.toUpperCase()" /></ElFormItem><ElFormItem label="交易币种" required><ElInput v-model="routeForm.currency" maxlength="3" placeholder="USD" @input="routeForm.currency = routeForm.currency.toUpperCase()" /></ElFormItem><ElFormItem label="优先级" required><ElInputNumber v-model="routeForm.priority" :min="1" :max="100000" controls-position="right" /><small class="form-help">数值越小越优先；仅在本层无可用渠道时才会切换下一优先级。</small></ElFormItem><ElFormItem label="流量权重" required><ElInputNumber v-model="routeForm.weight" :min="1" :max="100000" controls-position="right" /><small class="form-help">仅与相同商户作用域、相同优先级的规则比较，按权重比例分配流量。</small></ElFormItem></div><button class="primary-btn drawer-submit" type="button" :disabled="saving || !routeForm.ruleId || !routeForm.productCode || !routeForm.channelId || !routeForm.paymentMethod || !routeForm.currency || (!editingRoute && !routeForm.releaseId)" @click="createRoute"><Save :size="16" />{{ saving ? '保存中' : editingRoute ? '保存路由规则' : '创建路由规则' }}</button></ElForm></div>
-      <div v-else-if="drawer === 'settlement-import'" class="drawer-section settlement-drawer-form"><div class="drawer-summary"><span class="eyebrow">CHANNEL FILE</span><h4>{{ editingSettlementBill ? '结算账单编辑' : '结算文件录入' }}</h4><small>账单总额、笔数和逐笔明细必须一致。已匹配账单不可编辑，避免覆盖已确认结算事实。</small></div><div class="drawer-form-grid"><input v-model="settlementForm.billId" :disabled="!!editingSettlementBill" placeholder="渠道账单 ID（可选）" /><ElSelect v-model="settlementForm.channelId" filterable placeholder="选择渠道"><ElOption v-if="settlementForm.channelId && !hasSelectedSettlementChannel" :label="`${settlementForm.channelId} · 当前已关联`" :value="settlementForm.channelId" /><ElOption v-for="item in activeChannelOptions" :key="item.channelId" :label="`${item.channelId} · ${item.name} / ${item.provider}`" :value="item.channelId" /></ElSelect><input v-model="settlementForm.billDate" type="date" /><input v-model="settlementForm.currency" maxlength="3" placeholder="币种" @input="settlementForm.currency = settlementForm.currency.toUpperCase()" /><input v-model.number="settlementForm.totalAmount" type="number" min="0" step="0.01" placeholder="账单总金额" /><input v-model.number="settlementForm.totalCount" type="number" min="0" placeholder="账单笔数" /></div><label class="settlement-lines-field"><span>逐笔明细 JSON</span><textarea v-model="settlementForm.lines" rows="10" spellcheck="false" placeholder='[{"channelOrderId":"...","orderId":"...","transactionType":"PAYMENT","status":"SUCCESS","amount":100,"currency":"USD"}]' /></label><button class="primary-btn drawer-submit" :disabled="saving || !settlementForm.channelId" @click="importSettlementBill"><Save v-if="editingSettlementBill" :size="16" /><Upload v-else :size="16" />{{ editingSettlementBill ? '保存结算账单' : '导入并归档' }}</button></div>
-      <div v-else-if="drawer === 'settlement-detail' && selectedBill" class="drawer-section"><div class="settlement-detail-header"><div><span class="eyebrow">{{ selectedBill.channelId }}</span><h4>{{ selectedBill.billId }}</h4><p>{{ selectedBill.billDate }} · {{ selectedBill.currency }} · 导入于 {{ selectedBill.importedAt }}</p></div><span class="status-badge" :class="'st-' + selectedBill.status.toLowerCase()">{{ selectedBill.status }}</span></div><div class="settlement-detail-metrics"><div><span>账单金额</span><strong>{{ formatAmount(selectedBill.totalAmount, selectedBill.currency) }}</strong></div><div><span>逐笔记录</span><strong>{{ selectedBill.totalCount }}</strong></div></div><div class="drawer-section-heading"><h4>逐笔明细</h4><button v-if="canManageSettlement" class="outline-btn" :disabled="saving" @click="runSettlementReconciliation(selectedBill.billId)">发起对账</button></div><div v-if="!selectedBill.lines.length" class="empty">该账单没有逐笔明细</div><div v-else class="settlement-line-table-wrap"><table class="data-table settlement-line-table"><thead><tr><th>渠道订单</th><th>平台订单</th><th>类型 / 状态</th><th class="num">金额</th></tr></thead><tbody><tr v-for="(line, index) in selectedBill.lines" :key="String(line.channel_order_id || line.channelOrderId || index)"><td class="mono">{{ line.channel_order_id || line.channelOrderId || "--" }}</td><td class="mono">{{ line.order_id || line.orderId || "--" }}</td><td>{{ line.transaction_type || line.transactionType || "--" }}<small class="table-subtext">{{ line.status || "--" }}</small></td><td class="num">{{ formatAmount(Number(line.amount || 0), String(line.currency || selectedBill.currency)) }}</td></tr></tbody></table></div></div>
-      <div v-else class="drawer-section"><div class="drawer-form-grid"><input v-model="releaseReason" placeholder="创建草稿原因" /><input v-model="releaseConfig" placeholder='发布配置 JSON，如 {"description":"..."}' /></div><button class="primary-btn drawer-submit" :disabled="saving" @click="createConfigRelease">创建草稿</button></div>
     </AppDrawer>
-    <AppDialog
-      v-if="pendingRelease"
-      :title="releaseLabels[pendingRelease.action]"
-      :message="`版本 v${pendingRelease.release.versionNo} · ${pendingRelease.release.releaseId}`"
-      :confirm-text="releaseLabels[pendingRelease.action]"
-      :danger="pendingRelease.action === 'rollback'"
-      input-placeholder="请输入操作原因"
-      input-value="运营后台操作"
-      @confirm="doReleaseAction"
-      @cancel="pendingRelease = null"
-    />
   </section>
 </template>

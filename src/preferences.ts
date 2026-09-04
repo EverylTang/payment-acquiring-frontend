@@ -173,6 +173,7 @@ const englishTexts: Record<string, string> = {
   "切换菜单状态": "Toggle menu status",
   "路由与渠道": "Routing & channels",
   "费率与结算": "Pricing & settlement",
+  "费率管理": "Pricing",
   "风控工作台": "Risk workspace",
   "列表管理": "Manage records",
   "版本发布": "Releases",

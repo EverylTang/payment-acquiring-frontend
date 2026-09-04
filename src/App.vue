@@ -44,6 +44,7 @@ import PermissionManagementView from "./modules/permission/PermissionManagementV
 import RefundView from "./modules/refund/RefundView.vue";
 import OperationsView from "./modules/operations/OperationsView.vue";
 import ConfigurationCenterView from "./modules/configuration/ConfigurationCenterView.vue";
+import ReleaseManagementView from "./modules/configuration/ReleaseManagementView.vue";
 import MenuManagementView from "./modules/menu/MenuManagementView.vue";
 import RoutingRuleManagementView from "./modules/routing/RoutingRuleManagementView.vue";
 import PricingRuleManagementView from "./modules/pricing/PricingRuleManagementView.vue";
@@ -138,7 +139,8 @@ const pageByComponent: Record<string, string> = {
   "master-data": "国家与币种",
   routing: "路由与渠道",
   "routing-rules": "路由规则管理",
-  pricing: "费率与结算",
+  pricing: "费率管理",
+  releases: "版本发布",
   "pricing-rules": "费率规则管理",
   risk: "风控工作台",
   users: "用户管理",
@@ -158,7 +160,8 @@ const englishMenuLabels: Record<string, string> = {
   "master-data": "Countries & currencies",
   routing: "Routing & channels",
   "routing-rules": "Routing rules",
-  pricing: "Pricing & settlement",
+  pricing: "Pricing",
+  releases: "Releases",
   "pricing-rules": "Pricing rules",
   risk: "Risk workspace",
   system: "System",
@@ -176,7 +179,8 @@ const englishPageLabels: Record<string, string> = {
   国家与币种: "Countries & currencies",
   路由与渠道: "Routing & channels",
   路由规则管理: "Routing rules management",
-  费率与结算: "Pricing & settlement",
+  费率管理: "Pricing",
+  版本发布: "Releases",
   费率规则管理: "Pricing rules management",
   风控工作台: "Risk workspace",
   用户管理: "Users",
@@ -366,7 +370,7 @@ const loadPage = async (label: string) => {
     await loadProducts();
     return;
   }
-  if (["路由与渠道", "费率与结算", "风控工作台"].includes(label)) return;
+  if (["路由与渠道", "费率管理", "版本发布", "风控工作台"].includes(label)) return;
 };
 watch(
   menuGroups,
@@ -1086,8 +1090,12 @@ onMounted(async () => {
         @notice="notice = $event"
       />
       <ConfigurationCenterView
-        v-else-if="active === '费率与结算'"
+        v-else-if="active === '费率管理'"
         section="pricing"
+        @notice="notice = $event"
+      />
+      <ReleaseManagementView
+        v-else-if="active === '版本发布'"
         @notice="notice = $event"
       />
       <ConfigurationCenterView
