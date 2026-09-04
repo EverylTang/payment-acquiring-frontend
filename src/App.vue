@@ -27,13 +27,14 @@ import {
   WalletCards,
   XCircle,
 } from "lucide-vue-next";
-import { type Merchant } from "./modules/merchant/api";
+import { getMerchants, type Merchant } from "./modules/merchant/api";
+import { getActiveCurrencies, type Currency } from "./modules/master-data/api";
 import { getProducts, type Product } from "./modules/product/api";
 import { getRoles, getUsers, type AdminUser } from "./modules/user/api";
 import { getPermissionCatalog, getRolePermissions, type AdminRole, type PermissionCatalog } from "./modules/permission/api";
-import { cancelOrder, cancelPaymentAttempt, createOrder, createPaymentAttempt, getOrder, getOrderHealth, getOrderPage, getOrderStatistics, queryPaymentAttempt, resendOrderNotification, retryPaymentAttempt, type CreateOrderRequest, type Order, type OrderPage, type PaymentAttempt } from "./modules/order/api";
+import { cancelOrder, createOrder, getOrder, getOrderHealth, getOrderPage, getOrderStatistics, resendOrderNotification, type CreateOrderRequest, type Order, type OrderPage } from "./modules/order/api";
 import { getChannelHealth, getOverview, getSnapshot, type DashboardOverview } from "./modules/dashboard/api";
-import { authState, signOut } from "./auth";
+import { authState, hasPermission, signOut } from "./auth";
 import { changePassword } from "./modules/auth/api";
 import { preferences, setLocale, setTheme, type AppLocale, type AppTheme } from "./preferences";
 import MerchantDetailView from "./modules/merchant/MerchantDetailView.vue";
@@ -62,7 +63,6 @@ const passwordSaving = ref(false);
 const passwordForm = ref({ currentPassword: "", newPassword: "", confirmPassword: "" });
 const queryId = ref("");
 const selectedOrder = ref<Order | null>(null);
-const selectedAttempt = ref<PaymentAttempt | null>(null);
 const orderDrawer = ref<"create" | "detail" | null>(null);
 const orderForm = ref<CreateOrderRequest>({
   merchantId: "merchant-demo",
@@ -90,7 +90,9 @@ const orderPage = ref<OrderPage>({
   pageSize: 10,
   total: 0,
 });
-const orderFilters = ref({ merchantId: "", status: "", currency: "" });
+const orderFilters = ref({ merchantId: "", status: "", currency: "", orderType: "" as "" | "PAYIN" | "PAYOUT" });
+const orderFilterMerchants = ref<Merchant[]>([]);
+const orderFilterCurrencies = ref<Currency[]>([]);
 const listLoading = ref(false);
 const snapshotForm = ref({
   merchantId: "merchant-demo",
@@ -130,8 +132,8 @@ type NavigationDirectory = {
 type NavigationGroup = { key: string; directory: NavigationDirectory | null; items: NavigationItem[] };
 const pageByComponent: Record<string, string> = {
   dashboard: "总览",
-  orders: "订单与支付",
-  trade: "订单与支付",
+  orders: "订单管理",
+  trade: "订单管理",
   merchants: "商户管理",
   merchant: "商户管理",
   products: "产品管理",
@@ -174,7 +176,7 @@ const englishMenuLabels: Record<string, string> = {
 };
 const englishPageLabels: Record<string, string> = {
   总览: "Overview",
-  订单与支付: "Payments",
+  订单管理: "Order management",
   商户管理: "Merchants",
   产品管理: "Products",
   商户产品: "Merchant products",
@@ -319,6 +321,27 @@ watch(
   { immediate: true },
 );
 const isOverview = computed(() => active.value === "总览");
+const canManageOrders = computed(() => hasPermission("order:manage"));
+const canNotifyOrders = computed(() => hasPermission("order:notify"));
+const isTerminalOrder = (status: string) => ["SUCCESS", "FAILED", "CANCELED"].includes(status);
+const cancelOrderDisabledReason = computed(() => {
+  if (!selectedOrder.value) return "未选择订单";
+  if (!canManageOrders.value) return "当前账号没有订单处置权限";
+  if (isTerminalOrder(selectedOrder.value.status)) return "终态订单不能取消";
+  return "";
+});
+const notificationDisabledReason = computed(() => {
+  if (!selectedOrder.value) return "未选择订单";
+  if (!canNotifyOrders.value) return "当前账号没有商户通知权限，请重新登录以刷新权限后重试";
+  if (selectedOrder.value.status !== "SUCCESS") return "仅支付成功的订单可以通知商户";
+  if (!selectedOrder.value.notifyUrl) return "该订单未配置异步通知地址";
+  return "";
+});
+let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+watch(notice, (message) => {
+  if (noticeTimer) clearTimeout(noticeTimer);
+  if (message) noticeTimer = setTimeout(() => (notice.value = ""), 6000);
+});
 const run = async <T,>(action: () => Promise<T>, success = "") => {
   busy.value = true;
   notice.value = "";
@@ -353,8 +376,8 @@ const loadPage = async (label: string) => {
     await loadOverview();
     return;
   }
-  if (label === "订单与支付") {
-    await loadOrders();
+  if (label === "订单管理") {
+    await Promise.all([loadOrderFilterOptions(), loadOrders()]);
     return;
   }
   if (label === "用户管理") {
@@ -462,11 +485,27 @@ const loadOrders = async (page = 1) => {
     listLoading.value = false;
   }
 };
+const loadOrderFilterOptions = async () => {
+  if (orderFilterMerchants.value.length && orderFilterCurrencies.value.length) return;
+  try {
+    const [merchantPage, currencies] = await Promise.all([
+      getMerchants({ page: 1, pageSize: 100, status: "ACTIVE" }),
+      getActiveCurrencies(),
+    ]);
+    orderFilterMerchants.value = merchantPage.items;
+    orderFilterCurrencies.value = currencies;
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "订单筛选项加载失败";
+  }
+};
+const resetOrderFilters = async () => {
+  orderFilters.value = { merchantId: "", status: "", currency: "", orderType: "" };
+  await loadOrders(1);
+};
 const findOrder = async () => {
   if (!queryId.value.trim()) return;
   const result = await run(() => getOrder(queryId.value.trim()));
   if (result) selectedOrder.value = result;
-  selectedAttempt.value = null;
 };
 const createNewOrder = async () => {
   if (
@@ -500,6 +539,7 @@ const createNewOrder = async () => {
     notifyUrl: orderForm.value.notifyUrl?.trim() || undefined,
     returnUrl: orderForm.value.returnUrl?.trim() || undefined,
     customerReference: orderForm.value.customerReference?.trim() || undefined,
+    payoutDestinationRef: orderForm.value.payoutDestinationRef?.trim() || undefined,
     description: orderForm.value.description?.trim() || undefined,
   };
   const key = crypto.randomUUID();
@@ -509,7 +549,6 @@ const createNewOrder = async () => {
   );
   if (result) {
     selectedOrder.value = result;
-    selectedAttempt.value = null;
     queryId.value = result.orderId;
     orderDrawer.value = "detail";
   }
@@ -529,7 +568,6 @@ const openCreateOrder = () => {
 const formatOrderTime = (value?: string) => value?.replace("T", " ").replace(/\.\d+Z?$/, "") || "--";
 const inspectOrder = async (order: Order) => {
   selectedOrder.value = order;
-  selectedAttempt.value = null;
   queryId.value = order.orderId;
   orderDrawer.value = "detail";
   const result = await run(() => getOrder(order.orderId));
@@ -544,36 +582,17 @@ const refreshOrderStatus = async () => {
   if (result) selectedOrder.value = result;
 };
 const cancelSelectedOrder = async () => {
-  if (!selectedOrder.value) return;
+  if (!selectedOrder.value || cancelOrderDisabledReason.value) return;
   const result = await run(() => cancelOrder(selectedOrder.value!.orderId), "订单已取消");
   if (result) selectedOrder.value = result;
 };
 const resendNotification = async () => {
-  if (!selectedOrder.value) return;
+  if (!selectedOrder.value || notificationDisabledReason.value) return;
   const result = await run(
     () => resendOrderNotification(selectedOrder.value!.orderId, "后台人工再次通知"),
     "商户通知已重新入队",
   );
   if (result) selectedOrder.value = result;
-};
-const createAttempt = async () => {
-  if (!selectedOrder.value) return;
-  const result = await run(
-    () => createPaymentAttempt(selectedOrder.value!.orderId),
-    "支付尝试已创建",
-  );
-  if (result) selectedAttempt.value = result;
-};
-const mutateAttempt = async (action: "query" | "cancel" | "retry") => {
-  if (!selectedOrder.value || !selectedAttempt.value) return;
-  const request =
-    action === "query"
-      ? queryPaymentAttempt(selectedOrder.value.orderId, selectedAttempt.value.attemptId)
-      : action === "cancel"
-        ? cancelPaymentAttempt(selectedOrder.value.orderId, selectedAttempt.value.attemptId)
-        : retryPaymentAttempt(selectedOrder.value.orderId, selectedAttempt.value.attemptId);
-  const result = await run(() => request, "支付尝试已更新");
-  if (result) selectedAttempt.value = result;
 };
 const loadSnapshot = async () => {
   const result = await run(() => getSnapshot(snapshotForm.value));
@@ -599,6 +618,12 @@ onMounted(async () => {
 
 <template>
   <div class="app-shell">
+    <div v-if="notice" class="app-notice" role="status" aria-live="polite">
+      <span>{{ notice }}</span>
+      <button class="app-notice-close" type="button" title="关闭提示" aria-label="关闭提示" @click="notice = ''">
+        <XCircle :size="16" />
+      </button>
+    </div>
     <aside>
       <div class="brand">
         <span class="brand-mark">P</span>
@@ -788,43 +813,24 @@ onMounted(async () => {
         </section>
       </template>
       <section
-        v-else-if="active === '订单与支付'"
-        class="panel workspace-panel"
+        v-else-if="active === '订单管理'"
+        class="panel workspace-panel order-management-panel"
       >
         <div class="panel-title">
           <div>
             <span class="eyebrow">TRADE OPERATIONS</span>
             <h3>订单列表</h3>
           </div>
-          <div class="button-row">
-            <button class="outline-btn" @click="selectedOrder = null; orderDrawer = 'detail'">
-              <Search :size="16" />查询订单
-            </button>
-            <button class="primary-btn" @click="openCreateOrder">创建订单</button>
-            <button class="icon-btn" title="刷新订单" @click="loadOrders(orderPage.page)">
-              <RefreshCw :size="16" />
-            </button>
+        </div>
+        <form class="order-list-filter" @submit.prevent="loadOrders(1)">
+          <div class="order-filter-fields">
+            <label class="management-form-item"><span>商户</span><select v-model="orderFilters.merchantId"><option value="">全部商户</option><option v-for="merchant in orderFilterMerchants" :key="merchant.merchantId" :value="merchant.merchantId">{{ merchant.name }} · {{ merchant.merchantId }}</option></select></label>
+            <label class="management-form-item"><span>订单类型</span><select v-model="orderFilters.orderType"><option value="">全部类型</option><option value="PAYIN">收单</option><option value="PAYOUT">出款</option></select></label>
+            <label class="management-form-item"><span>订单状态</span><select v-model="orderFilters.status"><option value="">全部状态</option><option value="CREATED">已创建</option><option value="PAYING">处理中</option><option value="SUCCESS">成功</option><option value="FAILED">失败</option><option value="UNKNOWN">待确认</option><option value="CANCELED">已取消</option></select></label>
+            <label class="management-form-item"><span>交易币种</span><select v-model="orderFilters.currency"><option value="">全部币种</option><option v-for="currency in orderFilterCurrencies" :key="currency.code" :value="currency.code">{{ currency.code }} · {{ currency.name }}</option></select></label>
           </div>
-        </div>
-        <div class="order-filters">
-          <input
-            v-model="orderFilters.merchantId"
-            placeholder="商户 ID"
-          /><select v-model="orderFilters.status">
-            <option value="">全部状态</option>
-            <option value="CREATED">CREATED</option>
-            <option value="PAYING">PAYING</option>
-            <option value="SUCCESS">SUCCESS</option>
-            <option value="FAILED">FAILED</option>
-            <option value="UNKNOWN">UNKNOWN</option>
-            <option value="CANCELED">CANCELED</option></select
-          ><input v-model="orderFilters.currency" placeholder="币种" /><button
-            class="primary-btn"
-            @click="loadOrders(1)"
-          >
-            <Search :size="16" />筛选
-          </button>
-        </div>
+          <div class="order-filter-actions"><span class="toolbar-summary">共 {{ orderPage.total }} 笔订单</span><button class="outline-btn" type="button" @click="resetOrderFilters">重置</button><button class="primary-btn" type="submit"><Search :size="16" />查询</button><button class="primary-btn" type="button" @click="openCreateOrder">创建订单</button></div>
+        </form>
         <div v-if="!listLoading && orderPage.items.length" class="table-wrap order-list">
           <table class="data-table">
             <thead>
@@ -836,7 +842,7 @@ onMounted(async () => {
                 :key="order.orderId"
                 :class="{ selected: selectedOrder?.orderId === order.orderId }"
               >
-                <td><strong>{{ order.merchantOrderNo }}</strong></td>
+                <td><strong>{{ order.merchantOrderNo }}</strong><small class="order-type-label" :class="order.orderType === 'PAYOUT' ? 'payout' : 'payin'">{{ order.orderType === "PAYOUT" ? "出款" : "收单" }}</small></td>
                 <td class="mono">{{ order.orderId }}</td>
                 <td class="mono">{{ order.merchantId }}</td>
                 <td class="num mono">{{ order.amount }} {{ order.currency }}</td>
@@ -907,6 +913,7 @@ onMounted(async () => {
                 <label class="form-field"><span>异步通知地址</span><input v-model="orderForm.notifyUrl" type="url" maxlength="1024" placeholder="https://merchant.example/notify" /></label>
                 <label class="form-field"><span>支付完成跳转地址</span><input v-model="orderForm.returnUrl" type="url" maxlength="1024" placeholder="https://merchant.example/return" /></label>
                 <label class="form-field"><span>付款人引用</span><input v-model="orderForm.customerReference" maxlength="128" placeholder="内部可识别的付款人引用" /></label>
+                <label class="form-field"><span>收款方引用</span><input v-model="orderForm.payoutDestinationRef" maxlength="128" placeholder="出款产品必填；仅填写脱敏内部引用" /></label>
                 <label class="form-field"><span>订单描述</span><input v-model="orderForm.description" maxlength="1000" placeholder="订单说明（可选）" /></label>
               </div>
             </section>
@@ -922,7 +929,7 @@ onMounted(async () => {
             </div>
             <template v-else>
               <div class="order-detail-hero">
-                <div><span class="eyebrow">{{ selectedOrder.orderId }}</span><h4>{{ selectedOrder.merchantOrderNo }}</h4><p>{{ selectedOrder.merchantId }} · {{ selectedOrder.productCode }} · {{ selectedOrder.paymentMethod }}</p></div>
+                <div><span class="eyebrow">{{ selectedOrder.orderId }}</span><h4>{{ selectedOrder.merchantOrderNo }} <small class="order-type-label" :class="selectedOrder.orderType === 'PAYOUT' ? 'payout' : 'payin'">{{ selectedOrder.orderType === "PAYOUT" ? "出款订单" : "收单订单" }}</small></h4><p>{{ selectedOrder.merchantId }} · {{ selectedOrder.productCode }} · {{ selectedOrder.paymentMethod }}</p></div>
                 <span class="status-badge" :class="'st-' + selectedOrder.status.toLowerCase()">{{ selectedOrder.status }}</span>
               </div>
               <div class="order-amount-grid">
@@ -932,7 +939,7 @@ onMounted(async () => {
               </div>
               <section class="drawer-section order-detail-section">
                 <h4>交易信息</h4>
-                <dl class="order-detail-list"><div><dt>国家/地区</dt><dd>{{ selectedOrder.country || "--" }}</dd></div><div><dt>创建时间</dt><dd>{{ formatOrderTime(selectedOrder.createdAt) }}</dd></div><div><dt>过期时间</dt><dd>{{ formatOrderTime(selectedOrder.expireAt) }}</dd></div><div><dt>支付完成时间</dt><dd>{{ formatOrderTime(selectedOrder.paidAt) }}</dd></div><div><dt>支付令牌</dt><dd class="mono breakable">{{ selectedOrder.paymentToken || "--" }}</dd></div><div><dt>付款人引用</dt><dd>{{ selectedOrder.customerReference || "--" }}</dd></div></dl>
+                <dl class="order-detail-list"><div><dt>国家/地区</dt><dd>{{ selectedOrder.country || "--" }}</dd></div><div><dt>创建时间</dt><dd>{{ formatOrderTime(selectedOrder.createdAt) }}</dd></div><div><dt>过期时间</dt><dd>{{ formatOrderTime(selectedOrder.expireAt) }}</dd></div><div><dt>支付完成时间</dt><dd>{{ formatOrderTime(selectedOrder.paidAt) }}</dd></div><div><dt>支付令牌</dt><dd class="mono breakable">{{ selectedOrder.paymentToken || "--" }}</dd></div><div><dt>付款人引用</dt><dd>{{ selectedOrder.customerReference || "--" }}</dd></div><div v-if="selectedOrder.orderType === 'PAYOUT'"><dt>收款方引用</dt><dd>{{ selectedOrder.payoutDestinationRef || "--" }}</dd></div></dl>
               </section>
               <section class="drawer-section order-detail-section">
                 <h4>费用与通知</h4>
@@ -944,26 +951,26 @@ onMounted(async () => {
                 <h4>路由与费率快照</h4>
                 <pre class="snapshot-preview">{{ selectedOrder.routeSnapshot || "--" }}\n{{ selectedOrder.pricingSnapshot || "--" }}</pre>
               </section>
+              <section class="drawer-section order-detail-section">
+                <h4>商户请求参数</h4>
+                <pre class="snapshot-preview">{{ selectedOrder.merchantRequestSnapshot || "历史订单未记录" }}</pre>
+              </section>
+              <section class="drawer-section order-detail-section">
+                <h4>渠道处理结果</h4>
+                <dl class="order-detail-list"><div><dt>渠道</dt><dd>{{ selectedOrder.channelId || "--" }}</dd></div><div><dt>渠道订单号</dt><dd class="mono breakable">{{ selectedOrder.channelOrderId || "--" }}</dd></div><div><dt>渠道状态</dt><dd>{{ selectedOrder.channelStatus || "--" }}</dd></div></dl>
+                <pre class="snapshot-preview">{{ selectedOrder.channelResponseSnapshot || "暂未收到渠道返回" }}</pre>
+              </section>
               <div class="drawer-section">
                 <h4>订单处置</h4>
                 <div class="button-row drawer-actions">
-                  <button class="outline-btn" @click="refreshOrderStatus"><RefreshCw :size="16" />刷新状态</button>
-                  <button class="danger-btn" :disabled="['SUCCESS', 'FAILED', 'CANCELED'].includes(selectedOrder.status)" @click="cancelSelectedOrder"><XCircle :size="16" />取消订单</button>
-                  <button class="outline-btn" :disabled="selectedOrder.status !== 'SUCCESS' || !selectedOrder.notifyUrl" @click="resendNotification">再次通知商户</button>
+                  <button class="outline-btn" :disabled="busy" title="重新读取订单最新状态" @click="refreshOrderStatus"><RefreshCw :size="16" />刷新状态</button>
+                  <button class="danger-btn" :disabled="busy || !!cancelOrderDisabledReason" :title="cancelOrderDisabledReason || '取消未完成订单'" @click="cancelSelectedOrder"><XCircle :size="16" />取消订单</button>
+                  <button class="outline-btn" :disabled="busy || !!notificationDisabledReason" :title="notificationDisabledReason || '将成功订单的通知重新加入投递队列'" @click="resendNotification">再次通知商户</button>
                 </div>
+                <p v-if="cancelOrderDisabledReason" class="order-action-hint">取消订单不可用：{{ cancelOrderDisabledReason }}</p>
+                <p v-if="notificationDisabledReason" class="order-action-hint">再次通知不可用：{{ notificationDisabledReason }}</p>
               </div>
-              <div class="drawer-section attempt-panel">
-                <div>
-                  <span class="eyebrow">PAYMENT ATTEMPT</span>
-                  <strong>{{ selectedAttempt ? `第 ${selectedAttempt.attemptNo} 次 · ${selectedAttempt.status}` : "尚未创建支付尝试" }}</strong>
-                  <small v-if="selectedAttempt">{{ selectedAttempt.channelId }} · {{ selectedAttempt.channelOrderId }}</small>
-                </div>
-                <div class="button-row drawer-actions">
-                  <button class="outline-btn" @click="createAttempt">创建尝试</button>
-                  <template v-if="selectedAttempt"><button class="outline-btn" @click="mutateAttempt('query')">查询渠道</button><button class="outline-btn" @click="mutateAttempt('retry')">重试</button><button class="danger-btn" @click="mutateAttempt('cancel')">取消尝试</button></template>
-                </div>
-              </div>
-              <RefundView v-if="selectedOrder.status === 'SUCCESS'" :order="selectedOrder" @notice="notice = $event" />
+              <RefundView v-if="selectedOrder.orderType === 'PAYIN' && selectedOrder.status === 'SUCCESS'" :order="selectedOrder" @notice="notice = $event" />
             </template>
           </template>
         </AppDrawer>

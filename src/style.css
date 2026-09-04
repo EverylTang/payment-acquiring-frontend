@@ -1563,6 +1563,18 @@ nav button.active::before { background: var(--accent); }
 .drawer-actions .primary-btn,
 .drawer-actions .outline-btn { min-width: 88px; }
 .order-list .actions { width: 64px; text-align: center; }
+.order-management-panel > .panel-title { display: none; }
+.order-list-filter { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px 16px; margin-bottom: 16px; padding: 16px; border: 1px solid #ebeef5; border-radius: 4px; background: #f8fafc; }
+.order-filter-fields { display: grid; flex: 1 1 740px; grid-template-columns: repeat(4, minmax(145px, 1fr)); gap: 14px 16px; }
+.order-filter-actions { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; min-height: 42px; }
+.order-filter-actions .toolbar-summary { margin-right: auto; white-space: nowrap; }
+.order-list { margin-top: 0; }
+.order-list .data-table { min-width: 1040px; }
+.order-list .data-table th:first-child { min-width: 160px; }
+.order-list .data-table th:nth-child(2) { min-width: 252px; }
+.order-list .data-table th:nth-child(3) { min-width: 138px; }
+.order-list .data-table td:first-child strong { display: block; color: #303133; font-size: 13px; font-weight: 600; }
+.order-list .order-type-label { margin: 5px 0 0; }
 .order-create-form .drawer-section { margin: 0; padding: 0; }
 .order-create-form .drawer-section + .drawer-section { margin-top: 22px; padding-top: 22px; }
 .order-create-form .drawer-section-heading { align-items: flex-start; margin-bottom: 14px; }
@@ -1582,9 +1594,17 @@ nav button.active::before { background: var(--accent); }
 .order-detail-list dd { margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .order-description { margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 12px; line-height: 1.65; white-space: pre-wrap; }
 .order-notification-error { margin: 14px 0 0; padding: 9px 10px; border-left: 3px solid #e6a23c; color: #8a5a00; background: #fdf6ec; font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }
+.order-action-hint { margin: 10px 0 0; color: #909399; font-size: 12px; line-height: 1.5; }
+.order-type-label { display: inline-block; margin: 3px 0 0 7px; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-weight: 600; line-height: 1.45; vertical-align: middle; }
+.order-type-label.payin { color: #087f5b; background: #e6fcf5; }
+.order-type-label.payout { color: #7c4d00; background: #fff3bf; }
+.app-notice { position: fixed; z-index: 1000; top: 18px; right: 20px; display: flex; width: min(420px, calc(100vw - 32px)); align-items: flex-start; justify-content: space-between; gap: 12px; padding: 11px 12px 11px 14px; border: 1px solid #b3d8ff; border-left: 3px solid #409eff; border-radius: 4px; color: #303133; background: #ecf5ff; box-shadow: 0 6px 16px rgba(0, 0, 0, .12); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.app-notice-close { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 22px; height: 22px; margin: -2px -3px 0 0; padding: 0; border: 0; color: #606266; background: transparent; }
+.app-notice-close:hover { color: #303133; background: transparent; }
 :root[data-theme="midnight"] .order-detail-hero,
 :root[data-theme="midnight"] .order-description { border-color: var(--line); }
 :root[data-theme="midnight"] .order-notification-error { color: #f6c36b; background: rgba(230, 162, 60, .12); }
+:root[data-theme="midnight"] .app-notice { border-color: rgba(138, 234, 255, .4); border-left-color: var(--accent); color: var(--ink); background: var(--surface-2); }
 @media (max-width: 560px) {
   .order-amount-grid,
   .order-detail-list { grid-template-columns: 1fr; }
@@ -1597,6 +1617,7 @@ nav button.active::before { background: var(--accent); }
 :root[data-theme="midnight"] .product-filters,
 :root[data-theme="midnight"] .order-filters,
 :root[data-theme="midnight"] .search-row { border-color: var(--line); background: var(--surface); }
+:root[data-theme="midnight"] .order-list-filter { border-color: var(--line); background: var(--surface); }
 :root[data-theme="midnight"] .data-table { border-color: var(--line); }
 :root[data-theme="midnight"] .data-table th { color: var(--muted); background: #0d1725; }
 :root[data-theme="midnight"] .data-table tbody tr:hover { background: rgba(138, 234, 255, .05); }
@@ -1611,6 +1632,9 @@ nav button.active::before { background: var(--accent); }
   .element-filter-bar label { grid-template-columns: 1fr; }
   .drawer-actions .primary-btn,
   .drawer-actions .outline-btn { flex: 1; }
+  .order-filter-fields { grid-template-columns: 1fr; flex-basis: 100%; }
+  .order-filter-actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .order-filter-actions .toolbar-summary { grid-column: 1 / -1; margin: 0; }
 }
 
 /* Reusable management-list template. */
