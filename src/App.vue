@@ -475,6 +475,7 @@ const loadOrders = async (page = 1) => {
   try {
     const result = await getOrderPage({
       ...orderFilters.value,
+      orderType: orderFilters.value.orderType || undefined,
       page,
       pageSize: orderPage.value.pageSize,
     });
