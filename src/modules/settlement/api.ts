@@ -3,9 +3,12 @@ import { request } from "../../api";
 export type SettlementRule = {
   id?: number;
   merchantId: string;
+  productCode: string;
   currency: string;
   settlementCycle: string;
   cycleDays: number;
+  settlementDay?: number | null;
+  cycleInterval?: number;
   minSettlementAmount: number;
   feeRate: number;
   autoSettlement: boolean;
@@ -14,11 +17,10 @@ export type SettlementRule = {
   expireDate?: string | null;
 };
 
-export const getSettlementRules = (merchantId?: string, currency?: string) => {
-  const query = new URLSearchParams();
-  if (merchantId) query.set("merchantId", merchantId);
-  if (currency) query.set("currency", currency);
-  return request<{ items: SettlementRule[] }>(`/admin/v1/settlement/rules?${query}`);
+export const getSettlementRules = (filters: { page?: number; pageSize?: number; merchantId?: string; productCode?: string; currency?: string; status?: string } = {}) => {
+  const query = new URLSearchParams({ page: String(filters.page || 1), pageSize: String(filters.pageSize || 20) });
+  (["merchantId", "productCode", "currency", "status"] as const).forEach((key) => { if (filters[key]) query.set(key, filters[key]); });
+  return request<{ items: SettlementRule[]; page: number; pageSize: number; total: number }>(`/admin/v1/settlement/rules?${query}`);
 };
 
 export const saveSettlementRule = (rule: SettlementRule) =>

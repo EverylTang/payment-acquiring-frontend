@@ -55,6 +55,7 @@ const PricingRuleManagementView = defineAsyncComponent(() => import("./modules/p
 const MasterDataView = defineAsyncComponent(() => import("./modules/master-data/MasterDataView.vue"));
 const RiskWorkspaceView = defineAsyncComponent(() => import("./modules/risk/RiskWorkspaceView.vue"));
 const SettlementManagementView = defineAsyncComponent(() => import("./modules/settlement/SettlementManagementView.vue"));
+const MerchantFundManagementView = defineAsyncComponent(() => import("./modules/merchant-funds/MerchantFundManagementView.vue"));
 
 const active = ref<string | null>(null);
 const busy = ref(false);
@@ -147,6 +148,7 @@ const pageByComponent: Record<string, string> = {
   "routing-rules": "路由规则管理",
   pricing: "费率管理",
   settlement: "结算管理",
+  "merchant-funds": "商户资金",
   releases: "版本发布",
   "pricing-rules": "费率规则管理",
   risk: "风控工作台",
@@ -168,6 +170,7 @@ const englishMenuLabels: Record<string, string> = {
   routing: "Routing & channels",
   "routing-rules": "Routing rules",
   pricing: "Pricing",
+  "merchant-funds": "Merchant funds",
   releases: "Releases",
   "pricing-rules": "Pricing rules",
   risk: "Risk workspace",
@@ -187,6 +190,7 @@ const englishPageLabels: Record<string, string> = {
   路由与渠道: "Routing & channels",
   路由规则管理: "Routing rules management",
   费率管理: "Pricing",
+  商户资金: "Merchant funds",
   版本发布: "Releases",
   费率规则管理: "Pricing rules management",
   风控工作台: "Risk workspace",
@@ -1233,6 +1237,7 @@ onMounted(async () => {
         @notice="notice = $event"
       />
       <SettlementManagementView v-else-if="active === '结算管理'" @notice="notice = $event" />
+      <MerchantFundManagementView v-else-if="active === '商户资金'" @notice="notice = $event" />
       <MenuManagementView
         v-else-if="active === '菜单管理'"
         @notice="notice = $event"

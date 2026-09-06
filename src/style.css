@@ -1728,6 +1728,51 @@ nav button.active::before { background: var(--accent); }
 .settlement-line-table-wrap { max-height: 420px; overflow: auto; border: 1px solid #ebeef5; border-radius: 4px; }
 .settlement-line-table { min-width: 650px; border: 0; border-radius: 0; }
 .settlement-line-table th { position: sticky; top: 0; z-index: 1; }
+.settlement-management .panel-title { margin-bottom: 18px; }
+.merchant-fund-management .panel-title { margin-bottom: 18px; }
+.merchant-fund-tabs .el-tabs__header { margin-bottom: 18px; }
+.merchant-fund-tabs .el-tabs__item { height: 38px; }
+.merchant-fund-tab-label { display: inline-flex; align-items: center; gap: 7px; }
+.merchant-fund-table-shell { overflow-x: auto; border: 1px solid #ebeef5; border-radius: 4px; background: #fff; }
+.merchant-fund-table-shell .el-table { min-width: 980px; }
+.merchant-fund-table-shell .table-subtext { display: block; margin-top: 4px; color: #909399; font-size: 12px; }
+.merchant-fund-table-shell .table-date { color: #909399; font: 11px 'DM Mono', monospace; white-space: nowrap; }
+.fund-amount { color: #303133; font-family: 'DM Mono', monospace; font-weight: 600; white-space: nowrap; }
+.fund-income { color: #16a34a; font-family: 'DM Mono', monospace; font-weight: 600; white-space: nowrap; }
+.fund-expense { color: #dc2626; font-family: 'DM Mono', monospace; font-weight: 600; white-space: nowrap; }
+:root[data-theme="midnight"] .merchant-fund-table-shell { border-color: var(--line); background: var(--paper); }
+:root[data-theme="midnight"] .fund-amount { color: var(--ink); }
+.settlement-editor, .settlement-batch-section { margin: 20px 0; padding: 18px; border: 1px solid #ebeef5; border-radius: 4px; background: #f8fafc; }
+.settlement-editor .section-heading, .settlement-batch-section .section-heading { margin: 0 0 16px; }
+.settlement-editor .section-heading h4, .settlement-batch-section .section-heading h4 { margin: 0 0 4px; }
+.settlement-editor .section-heading span, .settlement-batch-section .section-heading span { color: #909399; font-size: 12px; }
+.settlement-editor-actions { display: flex; align-items: end; }
+.settlement-table { min-width: 820px; }
+.settlement-table .actions { width: 104px; white-space: nowrap; }
+.settlement-table .icon-btn + .icon-btn { margin-left: 8px; }
+.settlement-table-shell { overflow-x: auto; border: 1px solid #ebeef5; border-radius: 4px; background: #fff; }
+.settlement-table-shell .el-table { --el-table-border-color: #ebeef5; --el-table-header-bg-color: #f8fafc; --el-table-row-hover-bg-color: #f5faff; min-width: 820px; }
+.settlement-table-shell .el-table th.el-table__cell { color: #606266; font-size: 12px; font-weight: 600; }
+.settlement-table-shell .el-table td.el-table__cell { height: 58px; color: #303133; font-size: 13px; }
+.settlement-table-shell .el-table .cell { overflow: visible; }
+.settlement-table-shell .table-subtext { display: block; margin-top: 4px; color: #909399; font-size: 12px; }
+.settlement-row-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; width: 100%; }
+:root[data-theme="midnight"] .settlement-table-shell { border-color: var(--line); background: var(--paper); }
+:root[data-theme="midnight"] .settlement-table-shell .el-table { --el-table-border-color: var(--line); --el-table-header-bg-color: #0d1725; --el-table-tr-bg-color: var(--paper); --el-table-row-hover-bg-color: rgba(138, 234, 255, .05); --el-table-text-color: var(--ink); }
+.settlement-detail-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.settlement-detail-list { display: grid; gap: 0; margin: 0; border-top: 1px solid #ebeef5; }
+.settlement-detail-list div { display: flex; justify-content: space-between; gap: 16px; padding: 13px 0; border-bottom: 1px solid #ebeef5; }
+.settlement-detail-list dt { color: #909399; font-size: 12px; }
+.settlement-detail-list dd { margin: 0; color: #303133; font-size: 13px; font-weight: 500; text-align: right; }
+:root[data-theme="midnight"] .settlement-detail-list { border-color: var(--line); }
+:root[data-theme="midnight"] .settlement-detail-list div { border-color: var(--line); }
+:root[data-theme="midnight"] .settlement-detail-list dd { color: var(--ink); }
+.batch-controls { display: grid; grid-template-columns: 190px minmax(240px, 1fr) auto auto; gap: 12px; align-items: end; }
+.batch-controls .outline-btn, .batch-controls .primary-btn { min-height: 32px; white-space: nowrap; }
+:root[data-theme="midnight"] .settlement-editor, :root[data-theme="midnight"] .settlement-batch-section { border-color: var(--line); background: var(--surface); }
+:root[data-theme="midnight"] .settlement-editor .section-heading span, :root[data-theme="midnight"] .settlement-batch-section .section-heading span { color: var(--muted); }
+@media (max-width: 720px) { .batch-controls { grid-template-columns: 1fr 1fr; }.batch-id-field { grid-column: 1 / -1; }.settlement-editor, .settlement-batch-section { padding: 14px; } }
+@media (max-width: 460px) { .batch-controls { grid-template-columns: 1fr; }.batch-id-field { grid-column: auto; }.settlement-editor-actions .primary-btn, .batch-controls .outline-btn, .batch-controls .primary-btn { width: 100%; } }
 :root[data-theme="midnight"] .configuration-summary-card, :root[data-theme="midnight"] .configuration-table-wrap { border-color: var(--line); background: var(--paper); }
 :root[data-theme="midnight"] .configuration-summary-card strong, :root[data-theme="midnight"] .settlement-drawer-form, :root[data-theme="midnight"] .settlement-detail-metrics strong { color: var(--ink); }
 :root[data-theme="midnight"] .configuration-table .table-subtext, :root[data-theme="midnight"] .configuration-table .table-date, :root[data-theme="midnight"] .settlement-detail-header p, :root[data-theme="midnight"] .settlement-detail-metrics span { color: var(--muted); }
