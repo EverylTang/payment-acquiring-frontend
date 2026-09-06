@@ -13,7 +13,7 @@ export type Channel = {
   provider: string;
   requestUrl: string;
   signatureProfile: string;
-  status: "ACTIVE" | "DISABLED";
+  status: "ACTIVE" | "DISABLED" | "INACTIVE";
   configuration: Record<string, unknown>;
   credentials: Record<string, unknown>;
 };

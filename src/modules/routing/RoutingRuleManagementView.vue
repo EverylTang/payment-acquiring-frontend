@@ -11,12 +11,16 @@ import {
 } from "./api";
 import { hasPermission } from "../../auth";
 import AppPagination from "../../components/AppPagination.vue";
+import { getProducts, type Product } from "../product/api";
+import { getMerchants, type Merchant } from "../merchant/api";
+import { getChannels, type Channel } from "../configuration/api";
 
 const emit = defineEmits<{ notice: [message: string] }>();
 const rules = ref<RoutingRule[]>([]);
 const editing = ref<RoutingRule | null>(null);
 const page = ref({ current: 1, pageSize: 20, total: 0 });
 const loading = ref(false);
+const products = ref<Product[]>([]), merchants = ref<Merchant[]>([]), channels = ref<Channel[]>([]);
 const saving = ref(false);
 const form = ref({
   releaseVersion: 1,
@@ -132,7 +136,7 @@ const cancel = () => {
   resetForm();
 };
 
-onMounted(load);
+onMounted(async () => { await Promise.all([load(), getProducts({ page: 1, pageSize: 100, status: "ACTIVE" }).then(r => products.value = r.items), getMerchants({ page: 1, pageSize: 100, status: "ACTIVE" }).then(r => merchants.value = r.items), getChannels({ page: 1, pageSize: 100 }).then(r => channels.value = r.items.filter(c => c.status === "ACTIVE"))]); });
 </script>
 
 <template>
@@ -144,12 +148,12 @@ onMounted(load);
 
     <div class="form-grid">
       <input v-model.number="form.releaseVersion" type="number" min="1" placeholder="发布版本" />
-      <input v-model="form.productCode" placeholder="产品编码" />
-      <input v-model="form.merchantId" placeholder="商户ID（可选）" />
+      <select v-model="form.productCode"><option value="">选择产品</option><option v-for="p in products" :key="p.productCode" :value="p.productCode">{{ p.name }} · {{ p.productCode }}</option></select>
+      <select v-model="form.merchantId"><option value="">全部商户</option><option v-for="m in merchants" :key="m.merchantId" :value="m.merchantId">{{ m.name }} · {{ m.merchantId }}</option></select>
       <input v-model="form.country" placeholder="国家" />
       <input v-model="form.paymentMethod" placeholder="支付方式" />
       <input v-model="form.currency" maxlength="3" placeholder="币种" />
-      <input v-model="form.channelId" placeholder="渠道 ID" />
+      <select v-model="form.channelId"><option value="">选择渠道</option><option v-for="c in channels" :key="c.channelId" :value="c.channelId">{{ c.name }} · {{ c.channelId }}</option></select>
       <input v-model.number="form.priority" type="number" min="0" placeholder="优先级" />
       <input v-model.number="form.weight" type="number" min="1" placeholder="规则权重" />
       <button v-if="hasPermission(editing ? 'routing:update' : 'routing:create')" class="primary-btn" :disabled="saving" @click="save">

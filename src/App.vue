@@ -54,6 +54,7 @@ const RoutingRuleManagementView = defineAsyncComponent(() => import("./modules/r
 const PricingRuleManagementView = defineAsyncComponent(() => import("./modules/pricing/PricingRuleManagementView.vue"));
 const MasterDataView = defineAsyncComponent(() => import("./modules/master-data/MasterDataView.vue"));
 const RiskWorkspaceView = defineAsyncComponent(() => import("./modules/risk/RiskWorkspaceView.vue"));
+const SettlementManagementView = defineAsyncComponent(() => import("./modules/settlement/SettlementManagementView.vue"));
 
 const active = ref<string | null>(null);
 const busy = ref(false);
@@ -145,6 +146,7 @@ const pageByComponent: Record<string, string> = {
   routing: "路由与渠道",
   "routing-rules": "路由规则管理",
   pricing: "费率管理",
+  settlement: "结算管理",
   releases: "版本发布",
   "pricing-rules": "费率规则管理",
   risk: "风控工作台",
@@ -1230,6 +1232,7 @@ onMounted(async () => {
         v-else-if="active === '风控工作台'"
         @notice="notice = $event"
       />
+      <SettlementManagementView v-else-if="active === '结算管理'" @notice="notice = $event" />
       <MenuManagementView
         v-else-if="active === '菜单管理'"
         @notice="notice = $event"
