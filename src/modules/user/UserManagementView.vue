@@ -9,7 +9,6 @@ import {
   ToggleLeft,
   UserRoundPen,
 } from "lucide-vue-next";
-import { ElPagination } from "element-plus";
 import {
   changeUserStatus,
   createUser,
@@ -23,13 +22,14 @@ import {
 } from "./api";
 import type { AdminRole } from "../permission/api";
 import AppDrawer from "../../components/AppDrawer.vue";
+import AppPagination from "../../components/AppPagination.vue";
 
 const users = ref<AdminUser[]>([]);
 const roles = ref<AdminRole[]>([]);
 const selected = ref<AdminUser | null>(null);
 const createDrawerOpen = ref(false);
 const editDrawerOpen = ref(false);
-const page = ref({ current: 1, pageSize: 20, total: 0 });
+const page = ref({ current: 1, pageSize: 10, total: 0 });
 const filters = ref({ username: "", displayName: "", status: "", roleCode: "" });
 const assignedMerchants = ref("");
 const resetPassword = ref("");
@@ -193,7 +193,7 @@ onMounted(load);
     <div class="management-list-summary"><span>用户列表</span><small>共 {{ page.total }} 个用户</small></div>
     <div v-if="loading" class="empty"><LoaderCircle class="spin" :size="22" />加载中…</div>
     <div v-else class="table-wrap management-table-wrap"><table class="data-table user-management-table"><colgroup><col class="user-name-column" /><col class="user-account-column" /><col class="user-role-column" /><col class="user-status-column" /><col class="management-actions-column" /></colgroup><thead><tr><th>显示名称</th><th>账号</th><th>角色</th><th>状态</th><th class="actions">操作</th></tr></thead><tbody><tr v-for="user in users" :key="user.id"><td><strong>{{ user.displayName }}</strong></td><td class="mono">{{ user.username }}</td><td>{{ user.roles.join(" · ") || "--" }}</td><td><span class="status-badge" :class="'st-' + user.status.toLowerCase()">{{ user.status === "ACTIVE" ? "已启用" : "已停用" }}</span></td><td class="actions"><div class="management-row-actions"><button class="outline-btn" type="button" @click="select(user)"><UserRoundPen :size="16" />编辑</button><button class="outline-btn" type="button" @click="updateStatus(user)"><ToggleLeft :size="16" />{{ user.status === "ACTIVE" ? "停用" : "启用" }}</button></div></td></tr><tr v-if="!users.length"><td colspan="5" class="empty">暂无符合条件的用户</td></tr></tbody></table></div>
-    <div class="management-pagination"><ElPagination background layout="sizes, total, prev, pager, next" :current-page="page.current" :page-size="page.pageSize" :page-sizes="[20, 50, 100]" :total="page.total" :hide-on-single-page="false" @current-change="load" @size-change="changePageSize" /></div>
+    <AppPagination :page="page.current" :page-size="page.pageSize" :total="page.total" @change="load" @size-change="changePageSize" />
   </section>
   <AppDrawer v-if="createDrawerOpen" title="新增用户" description="SYSTEM USERS" @close="closeCreateDrawer">
     <form class="drawer-section user-form" @submit.prevent="create">

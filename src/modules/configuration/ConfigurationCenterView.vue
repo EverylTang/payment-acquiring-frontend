@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { Pencil, Plus, RefreshCw, Save, ToggleLeft, Trash2 } from "lucide-vue-next";
-import { ElForm, ElFormItem, ElInput, ElInputNumber, ElOption, ElPagination, ElSelect } from "element-plus";
+import { ElForm, ElFormItem, ElInput, ElInputNumber, ElOption, ElSelect } from "element-plus";
 import { authState } from "../../auth";
 import {
   changeChannelStatus,
@@ -33,7 +33,11 @@ import { getProducts, type Product } from "../product/api";
 import { getMerchants, type Merchant } from "../merchant/api";
 import { getActiveCurrencies, type Currency } from "../master-data/api";
 
-const props = defineProps<{ section: "routing" | "pricing" | "risk" }>();
+const props = defineProps<{
+  section: "routing" | "pricing" | "risk";
+  drawerTarget?: string;
+  containedDrawer?: boolean;
+}>();
 const emit = defineEmits<{ notice: [message: string] }>();
 
 const loading = ref(false);
@@ -47,10 +51,10 @@ const routes = ref<RoutingRule[]>([]);
 const pricing = ref<PricingRule[]>([]);
 const policies = ref<RiskPolicy[]>([]);
 const releases = ref<ConfigRelease[]>([]);
-const channelPage = ref({ current: 1, pageSize: 20, total: 0 });
-const routePage = ref({ current: 1, pageSize: 20, total: 0 });
-const pricingPage = ref({ current: 1, pageSize: 20, total: 0 });
-const policyPage = ref({ current: 1, pageSize: 20, total: 0 });
+const channelPage = ref({ current: 1, pageSize: 10, total: 0 });
+const routePage = ref({ current: 1, pageSize: 10, total: 0 });
+const pricingPage = ref({ current: 1, pageSize: 10, total: 0 });
+const policyPage = ref({ current: 1, pageSize: 10, total: 0 });
 const routingView = ref<"channels" | "routes">("channels");
 const drawer = ref<"config" | "route" | null>(null);
 const editingChannel = ref<Channel | null>(null);
@@ -194,8 +198,8 @@ const changePage = (kind: "channel" | "route" | "pricing" | "policy", current: n
   pages[kind].value.current = current;
   return load();
 };
-const changePageSize = (kind: "channel" | "route", pageSize: number) => {
-  const pages = { channel: channelPage, route: routePage };
+const changePageSize = (kind: "channel" | "route" | "pricing" | "policy", pageSize: number) => {
+  const pages = { channel: channelPage, route: routePage, pricing: pricingPage, policy: policyPage };
   pages[kind].value.pageSize = pageSize;
   pages[kind].value.current = 1;
   return load();
@@ -436,32 +440,33 @@ onMounted(load);
             </tbody>
           </table>
         </div>
-        <div class="management-pagination configuration-pagination"><ElPagination background layout="sizes, total, prev, pager, next" :current-page="channelPage.current" :page-size="channelPage.pageSize" :page-sizes="[20, 50, 100]" :total="channelPage.total" :hide-on-single-page="false" @current-change="(current) => changePage('channel', current)" @size-change="(size) => changePageSize('channel', size)" /></div>
+        <AppPagination :page="channelPage.current" :page-size="channelPage.pageSize" :total="channelPage.total" @change="(current) => changePage('channel', current)" @size-change="(size) => changePageSize('channel', size)" />
       </template>
       <template v-else-if="section === 'routing'">
         <div class="section-heading"><div><span class="eyebrow">ROUTING POLICY</span><h4>路由规则</h4></div><span>{{ routePage.total }} 条规则</span></div>
         <div v-if="loading" class="empty">加载中…</div>
         <div v-else-if="!routes.length" class="empty">暂无路由规则</div>
         <div v-else class="configuration-table-wrap"><table class="data-table configuration-table"><thead><tr><th>适用条件</th><th>目标渠道</th><th>优先级 / 流量权重</th><th>作用范围</th><th>版本</th><th>状态</th><th class="actions">操作</th></tr></thead><tbody><tr v-for="item in routes" :key="item.ruleId"><td><strong>{{ item.productCode }}</strong><small class="table-subtext">{{ item.paymentMethod }} · {{ item.currency }}</small></td><td><strong class="mono">{{ item.channelId }}</strong></td><td><strong>{{ item.priority }} / {{ item.weight }}</strong><small class="table-subtext">同优先级内按比例分流</small></td><td>{{ item.merchantId || "默认商户池" }}<small class="table-subtext">{{ item.country || "全球" }}</small></td><td><span class="mono">v{{ item.releaseVersion }} · {{ item.ruleId }}</span></td><td><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span></td><td class="actions"><button v-if="canOperate" class="icon-btn" title="编辑路由规则" @click="editRoute(item)"><Pencil :size="16" /></button><button v-if="canApprove" class="icon-btn" title="切换规则状态" @click="toggle('route', item.ruleId, item.status)"><ToggleLeft :size="17" /></button></td></tr></tbody></table></div>
-        <div class="management-pagination configuration-pagination"><ElPagination background layout="sizes, total, prev, pager, next" :current-page="routePage.current" :page-size="routePage.pageSize" :page-sizes="[20, 50, 100]" :total="routePage.total" :hide-on-single-page="false" @current-change="(current) => changePage('route', current)" @size-change="(size) => changePageSize('route', size)" /></div>
+        <AppPagination :page="routePage.current" :page-size="routePage.pageSize" :total="routePage.total" @change="(current) => changePage('route', current)" @size-change="(size) => changePageSize('route', size)" />
       </template>
       <template v-else-if="section === 'pricing'">
         <div class="section-heading"><div><span class="eyebrow">PRICING CONTROL</span><h4>费率规则</h4></div><span>{{ pricingPage.total }} 条规则</span></div>
           <div v-if="loading" class="empty">加载中…</div>
           <div v-else-if="!pricing.length" class="empty">暂无费率规则</div>
           <div v-else class="configuration-table-wrap"><table class="data-table configuration-table"><thead><tr><th>适用范围</th><th>费率结构</th><th>交易金额限制</th><th>版本</th><th>状态</th><th class="actions">操作</th></tr></thead><tbody><tr v-for="item in pricing" :key="item.ruleId"><td><strong>{{ item.productCode }}</strong><small class="table-subtext">{{ item.merchantId || "全商户" }} · {{ item.channelId || "全部渠道" }} · {{ item.currency }}</small></td><td><strong>{{ pricingStructure(item) }}</strong><small class="table-subtext">{{ pricingLimits(item) }} · {{ item.feeMode }}</small></td><td>{{ formatAmount(item.minAmount, item.currency) }} - {{ formatAmount(item.maxAmount, item.currency) }}</td><td><span class="mono">v{{ item.releaseVersion }} · {{ item.ruleId }}</span></td><td><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span></td><td class="actions"><button v-if="canOperate" class="icon-btn" title="编辑费率规则" @click="editPricing(item)"><Pencil :size="16" /></button><button v-if="canApprove" class="icon-btn" title="切换规则状态" @click="toggle('pricing', item.ruleId, item.status)"><ToggleLeft :size="17" /></button></td></tr></tbody></table></div>
-          <AppPagination :page="pricingPage.current" :page-size="pricingPage.pageSize" :total="pricingPage.total" noun="条规则" @change="(current) => changePage('pricing', current)" />
+          <AppPagination :page="pricingPage.current" :page-size="pricingPage.pageSize" :total="pricingPage.total" @change="(current) => changePage('pricing', current)" @size-change="(size) => changePageSize('pricing', size)" />
       </template>
       <template v-else>
         <div class="section-heading"><h4>风控策略</h4><span>{{ policyPage.total }} 条策略</span></div>
         <div v-if="loading" class="empty">加载中…</div>
         <div v-else-if="!policies.length" class="empty">暂无风控策略</div>
         <div v-else class="record-list"><div v-for="item in policies" :key="item.policyId" class="record-row"><div><strong>{{ item.name }} · {{ item.decision }}</strong><small>{{ item.policyId }} · v{{ item.releaseVersion }} · 优先级 {{ item.priority }} · {{ JSON.stringify(item.condition) }}</small></div><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span><button v-if="canOperate" class="icon-btn" title="编辑风控策略" @click="editRisk(item)"><Pencil :size="16" /></button><button v-if="canApprove" class="icon-btn" title="切换策略状态" @click="toggle('risk', item.policyId, item.status)"><ToggleLeft :size="17" /></button></div></div>
-        <AppPagination :page="policyPage.current" :page-size="policyPage.pageSize" :total="policyPage.total" noun="条策略" @change="(current) => changePage('policy', current)" />
+        <AppPagination :page="policyPage.current" :page-size="policyPage.pageSize" :total="policyPage.total" @change="(current) => changePage('policy', current)" @size-change="(size) => changePageSize('policy', size)" />
       </template>
     </section>
 
-    <AppDrawer v-if="drawer" :title="drawer === 'route' ? routeDrawerTitle : drawer === 'config' && section === 'routing' ? configDrawerTitle : drawer === 'config' && section === 'pricing' ? pricingDrawerTitle : riskDrawerTitle" description="CONFIGURATION" @close="drawer = null">
+    <Teleport :to="drawerTarget || 'body'" :disabled="containedDrawer && !drawerTarget">
+    <AppDrawer v-if="drawer" :title="drawer === 'route' ? routeDrawerTitle : drawer === 'config' && section === 'routing' ? configDrawerTitle : drawer === 'config' && section === 'pricing' ? pricingDrawerTitle : riskDrawerTitle" description="CONFIGURATION" :contained="containedDrawer" @close="drawer = null">
       <div v-if="drawer === 'config'" class="drawer-section">
         <ElForm v-if="section === 'routing'" :model="channelForm" label-position="top" class="configuration-element-form">
           <div class="drawer-section-heading"><div><h4>{{ editingChannel ? '渠道基础配置' : '渠道与接入能力' }}</h4><small>{{ editingChannel ? '渠道标识和接入范围创建后保持不变；此处更新服务商、请求地址、签名方案和运行参数。' : '创建后即可在路由规则中选择该渠道。' }}</small></div></div>
@@ -509,5 +514,6 @@ onMounted(load);
       </div>
       <div v-else-if="drawer === 'route'" class="drawer-section"><ElForm :model="routeForm" label-position="top" class="configuration-element-form"><div class="drawer-section-heading"><div><h4>{{ editingRoute ? '路由策略编辑' : '路由策略定义' }}</h4><small>{{ editingRoute ? `正在编辑 ${editingRoute.ruleId}，保持发布版本 v${editingRoute.releaseVersion} 不变。` : '规则仅可关联至草稿版本，发布后按版本统一生效。' }}</small></div></div><div class="drawer-form-grid"><ElFormItem label="规则 ID" required><ElInput v-model="routeForm.ruleId" :disabled="!!editingRoute" placeholder="例如 ROUTE_CARD_US_001" /></ElFormItem><ElFormItem v-if="!editingRoute" label="草稿版本" required><ElSelect v-model="routeForm.releaseId" placeholder="选择草稿版本"><ElOption v-for="item in draftReleases" :key="item.releaseId" :label="`v${item.versionNo} · ${item.releaseId}`" :value="item.releaseId" /></ElSelect></ElFormItem><ElFormItem label="产品" required><ElSelect v-model="routeForm.productCode" filterable placeholder="选择产品"><ElOption v-if="routeForm.productCode && !hasSelectedRouteProduct" :label="`${routeForm.productCode} · 当前已关联`" :value="routeForm.productCode" /><ElOption v-for="item in activeProducts" :key="item.productCode" :label="`${item.productCode} · ${item.name}`" :value="item.productCode" /></ElSelect></ElFormItem><ElFormItem label="商户"><ElSelect v-model="routeForm.merchantId" clearable filterable placeholder="全部商户"><ElOption v-if="routeForm.merchantId && !hasSelectedRouteMerchant" :label="`${routeForm.merchantId} · 当前已关联`" :value="routeForm.merchantId" /><ElOption v-for="item in activeMerchants" :key="item.merchantId" :label="`${item.merchantId} · ${item.name}`" :value="item.merchantId" /></ElSelect><small class="form-help">留空表示默认商户池。</small></ElFormItem><ElFormItem label="目标渠道" required><ElSelect v-model="routeForm.channelId" filterable placeholder="选择已启用渠道"><ElOption v-if="routeForm.channelId && !hasSelectedRouteChannel" :label="`${routeForm.channelId} · 当前已关联`" :value="routeForm.channelId" /><ElOption v-for="item in routeChannels" :key="item.channelId" :label="`${item.channelId} · ${item.name} / ${item.provider}`" :value="item.channelId" /></ElSelect></ElFormItem><ElFormItem label="支付方式" required><ElInput v-model="routeForm.paymentMethod" placeholder="CARD" /></ElFormItem><ElFormItem label="国家 / 地区"><ElInput v-model="routeForm.country" maxlength="8" placeholder="US，留空表示全区域" @input="routeForm.country = routeForm.country.toUpperCase()" /></ElFormItem><ElFormItem label="交易币种" required><ElSelect v-model="routeForm.currency" filterable placeholder="选择交易币种"><ElOption v-if="routeForm.currency && !hasSelectedRouteCurrency" :label="`${routeForm.currency} · 当前已关联`" :value="routeForm.currency" /><ElOption v-for="item in currencies" :key="item.code" :label="`${item.code} · ${item.name}`" :value="item.code" /></ElSelect></ElFormItem><ElFormItem label="优先级" required><ElInputNumber v-model="routeForm.priority" :min="1" :max="100000" controls-position="right" /><small class="form-help">数值越小越优先；仅在本层无可用渠道时才会切换下一优先级。</small></ElFormItem><ElFormItem label="流量权重" required><ElInputNumber v-model="routeForm.weight" :min="1" :max="100000" controls-position="right" /><small class="form-help">仅与相同商户作用域、相同优先级的规则比较，按权重比例分配流量。</small></ElFormItem></div><button class="primary-btn drawer-submit" type="button" :disabled="saving || !routeForm.ruleId || !routeForm.productCode || !routeForm.channelId || !routeForm.paymentMethod || !routeForm.currency || (!editingRoute && !routeForm.releaseId)" @click="createRoute"><Save :size="16" />{{ saving ? '保存中' : editingRoute ? '保存路由规则' : '创建路由规则' }}</button></ElForm></div>
     </AppDrawer>
+    </Teleport>
   </section>
 </template>

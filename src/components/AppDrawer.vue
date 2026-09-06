@@ -4,14 +4,15 @@ import { X } from "lucide-vue-next";
 defineProps<{
   title: string;
   description?: string;
+  contained?: boolean;
 }>();
 
 const emit = defineEmits<{ close: [] }>();
 </script>
 
 <template>
-  <div class="drawer-mask" @click.self="emit('close')">
-    <div class="app-drawer" role="dialog" aria-modal="true" :aria-label="title">
+  <div class="drawer-mask" :class="{ 'drawer-mask-contained': contained }" @click.self="emit('close')">
+    <div class="app-drawer" :class="{ 'app-drawer-contained': contained }" role="dialog" aria-modal="true" :aria-label="title">
       <div class="drawer-head">
         <div>
           <span v-if="description" class="eyebrow">{{ description }}</span>

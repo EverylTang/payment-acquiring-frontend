@@ -27,9 +27,9 @@ import {
   WalletCards,
   XCircle,
 } from "lucide-vue-next";
-import { getMerchants, type Merchant } from "./modules/merchant/api";
-import { getActiveCurrencies, type Currency } from "./modules/master-data/api";
-import { getProducts, type Product } from "./modules/product/api";
+import { getMerchantProducts, getMerchants, type Merchant, type MerchantProduct } from "./modules/merchant/api";
+import { getActiveCountries, getActiveCurrencies, type Country, type Currency } from "./modules/master-data/api";
+import { getProductCapabilities, getProducts, type Product, type ProductCapability } from "./modules/product/api";
 import { getRoles, getUsers, type AdminUser } from "./modules/user/api";
 import { getPermissionCatalog, getRolePermissions, type AdminRole, type PermissionCatalog } from "./modules/permission/api";
 import { cancelOrder, createOrder, createPaymentAttempt, getOrder, getOrderHealth, getOrderPage, getOrderStatistics, resendOrderNotification, type CreateOrderRequest, type Order, type OrderPage } from "./modules/order/api";
@@ -38,6 +38,7 @@ import { authState, hasPermission, signOut } from "./auth";
 import { changePassword } from "./modules/auth/api";
 import { preferences, setLocale, setTheme, type AppLocale, type AppTheme } from "./preferences";
 import AppDrawer from "./components/AppDrawer.vue";
+import AppPagination from "./components/AppPagination.vue";
 
 const MerchantDetailView = defineAsyncComponent(() => import("./modules/merchant/MerchantDetailView.vue"));
 const MerchantManagementView = defineAsyncComponent(() => import("./modules/merchant/MerchantManagementView.vue"));
@@ -80,7 +81,7 @@ const overview = ref<DashboardOverview | null>(null);
 const selectedMerchant = ref<Merchant | null>(null);
 const selectedMerchantSection = ref<"profile" | "contacts" | "credentials">("profile");
 const products = ref<Product[]>([]);
-const productPage = ref({ page: 1, pageSize: 20, total: 0 });
+const productPage = ref({ page: 1, pageSize: 10, total: 0 });
 const permissionCatalog = ref<PermissionCatalog | null>(null);
 const selectedRole = ref("ADMIN");
 const selectedMenuCodes = ref<string[]>([]);
@@ -96,6 +97,13 @@ const orderPage = ref<OrderPage>({
 const orderFilters = ref({ merchantId: "", status: "", currency: "", orderType: "" as "" | "PAYIN" | "PAYOUT" });
 const orderFilterMerchants = ref<Merchant[]>([]);
 const orderFilterCurrencies = ref<Currency[]>([]);
+const orderCreateMerchants = ref<Merchant[]>([]);
+const orderCreateProducts = ref<Product[]>([]);
+const orderCreateMerchantProducts = ref<MerchantProduct[]>([]);
+const orderCreateCountries = ref<Country[]>([]);
+const orderCreateCurrencies = ref<Currency[]>([]);
+const orderCreateCapabilities = ref<ProductCapability[]>([]);
+const orderCreateLoading = ref(false);
 const listLoading = ref(false);
 const snapshotForm = ref({
   merchantId: "merchant-demo",
@@ -106,6 +114,21 @@ const snapshotForm = ref({
 const snapshot = ref<Record<string, unknown> | null>(null);
 const channelHealth = ref("检查中");
 const serviceOnline = ref(true);
+const orderSelectableProducts = computed(() => {
+  const boundCodes = new Set(
+    orderCreateMerchantProducts.value
+      .filter((binding) => binding.status === "ACTIVE")
+      .map((binding) => binding.productCode),
+  );
+  return orderCreateProducts.value.filter((product) => boundCodes.has(product.productCode));
+});
+const orderPaymentMethods = computed(() =>
+  [...new Set(
+    orderCreateCapabilities.value
+      .filter((capability) => capability.status === "ACTIVE")
+      .map((capability) => capability.customerPaymentMethod),
+  )],
+);
 const iconMap = {
   LayoutDashboard,
   WalletCards,
@@ -510,6 +533,10 @@ const loadOrders = async (page = 1) => {
     listLoading.value = false;
   }
 };
+const changeOrderPageSize = (pageSize: number) => {
+  orderPage.value.pageSize = pageSize;
+  void loadOrders(1);
+};
 const loadOrderFilterOptions = async () => {
   if (orderFilterMerchants.value.length && orderFilterCurrencies.value.length) return;
   try {
@@ -521,6 +548,70 @@ const loadOrderFilterOptions = async () => {
     orderFilterCurrencies.value = currencies;
   } catch (error) {
     notice.value = error instanceof Error ? error.message : "订单筛选项加载失败";
+  }
+};
+const loadOrderCreateCurrencies = async (countryCode: string, preferredCurrency = "") => {
+  orderCreateCurrencies.value = countryCode ? await getActiveCurrencies(countryCode) : [];
+  const selectedCurrency =
+    preferredCurrency && orderCreateCurrencies.value.some((currency) => currency.code === preferredCurrency)
+      ? preferredCurrency
+      : orderCreateCurrencies.value.some((currency) => currency.code === orderForm.value.currency)
+        ? orderForm.value.currency
+        : orderCreateCurrencies.value[0]?.code || "";
+  orderForm.value.currency = selectedCurrency;
+};
+const selectOrderProduct = async () => {
+  const product = orderSelectableProducts.value.find(
+    (item) => item.productCode === orderForm.value.productCode,
+  );
+  orderForm.value.paymentMethod = "";
+  orderCreateCapabilities.value = [];
+  if (!product) {
+    orderForm.value.country = "";
+    orderForm.value.currency = "";
+    orderCreateCurrencies.value = [];
+    return;
+  }
+  const [capabilities] = await Promise.all([
+    getProductCapabilities(product.productCode, { page: 1, pageSize: 100 }),
+    loadOrderCreateCurrencies(product.defaultCountry, product.defaultCurrency),
+  ]);
+  orderCreateCapabilities.value = capabilities.items;
+  orderForm.value.country = product.defaultCountry;
+  orderForm.value.paymentMethod = orderPaymentMethods.value[0] || "";
+};
+const selectOrderMerchant = async () => {
+  orderCreateMerchantProducts.value = orderForm.value.merchantId
+    ? (await getMerchantProducts({ merchantId: orderForm.value.merchantId, status: "ACTIVE", page: 1, pageSize: 100 })).items
+    : [];
+  const currentProductIsBound = orderSelectableProducts.value.some(
+    (product) => product.productCode === orderForm.value.productCode,
+  );
+  orderForm.value.productCode = currentProductIsBound
+    ? orderForm.value.productCode
+    : orderSelectableProducts.value[0]?.productCode || "";
+  await selectOrderProduct();
+};
+const selectOrderCountry = async () => {
+  await loadOrderCreateCurrencies(orderForm.value.country);
+};
+const loadOrderCreateReferences = async () => {
+  orderCreateLoading.value = true;
+  try {
+    const [merchantPage, productPageResult, countries] = await Promise.all([
+      getMerchants({ page: 1, pageSize: 100, status: "ACTIVE" }),
+      getProducts({ page: 1, pageSize: 100, status: "ACTIVE" }),
+      getActiveCountries(),
+    ]);
+    orderCreateMerchants.value = merchantPage.items;
+    orderCreateProducts.value = productPageResult.items;
+    orderCreateCountries.value = countries;
+    orderForm.value.merchantId = orderCreateMerchants.value[0]?.merchantId || "";
+    await selectOrderMerchant();
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "订单创建选项加载失败";
+  } finally {
+    orderCreateLoading.value = false;
   }
 };
 const resetOrderFilters = async () => {
@@ -589,17 +680,18 @@ const startPayment = async () => {
   selectedOrder.value = order;
   await loadOrders(orderPage.value.page);
 };
-const openCreateOrder = () => {
+const openCreateOrder = async () => {
   orderForm.value = {
-    merchantId: orderForm.value.merchantId || "merchant-demo",
+    merchantId: "",
     merchantOrderNo: `web-${Date.now()}`,
-    productCode: orderForm.value.productCode || "CARD-US-USD",
-    paymentMethod: orderForm.value.paymentMethod || "CARD",
-    country: orderForm.value.country || "US",
-    currency: orderForm.value.currency || "USD",
+    productCode: "",
+    paymentMethod: "",
+    country: "",
+    currency: "",
     amount: orderForm.value.amount || 100,
   };
   orderDrawer.value = "create";
+  await loadOrderCreateReferences();
 };
 const formatOrderTime = (value?: string) => value?.replace("T", " ").replace(/\.\d+Z?$/, "") || "--";
 const inspectOrder = async (order: Order) => {
@@ -895,29 +987,14 @@ onMounted(async () => {
           <LoaderCircle class="spin" :size="22" />加载中…
         </div>
         <div v-else class="empty">暂无订单数据</div>
-        <div v-if="orderPage.total" class="pagination">
-          <button
-            class="outline-btn"
-            :disabled="orderPage.page <= 1"
-            @click="loadOrders(orderPage.page - 1)"
-          >
-            上一页</button
-          ><span
-            >第 {{ orderPage.page }} 页 / 共
-            {{ Math.ceil(orderPage.total / orderPage.pageSize) }} 页（{{
-              orderPage.total
-            }}
-            条）</span
-          ><button
-            class="outline-btn"
-            :disabled="
-              orderPage.page >= Math.ceil(orderPage.total / orderPage.pageSize)
-            "
-            @click="loadOrders(orderPage.page + 1)"
-          >
-            下一页
-          </button>
-        </div>
+        <AppPagination
+          :page="orderPage.page"
+          :page-size="orderPage.pageSize"
+          :total="orderPage.total"
+          noun="条订单"
+          @change="loadOrders"
+          @size-change="changeOrderPageSize"
+        />
         <AppDrawer
           v-if="orderDrawer"
           :title="orderDrawer === 'create' ? '创建支付订单' : '订单详情与处置'"
@@ -928,12 +1005,12 @@ onMounted(async () => {
             <section class="drawer-section">
               <div class="drawer-section-heading"><div><h4>交易主体</h4><small>订单会按商户、产品、支付方式、国家和币种匹配已发布路由与费率。</small></div></div>
               <div class="drawer-form-grid">
-                <label class="form-field"><span>商户 ID <b>*</b></span><input v-model="orderForm.merchantId" maxlength="64" placeholder="例如 merchant-demo" /></label>
+                <label class="form-field"><span>商户 <b>*</b></span><select v-model="orderForm.merchantId" :disabled="orderCreateLoading" @change="selectOrderMerchant"><option value="">选择商户</option><option v-for="merchant in orderCreateMerchants" :key="merchant.merchantId" :value="merchant.merchantId">{{ merchant.name }} · {{ merchant.merchantId }}</option></select></label>
                 <label class="form-field"><span>商户订单号 <b>*</b></span><input v-model="orderForm.merchantOrderNo" maxlength="128" placeholder="商户侧唯一订单号" /></label>
-                <label class="form-field"><span>产品编码 <b>*</b></span><input v-model="orderForm.productCode" maxlength="64" placeholder="例如 CARD-US-USD" @input="orderForm.productCode = orderForm.productCode.toUpperCase()" /></label>
-                <label class="form-field"><span>支付方式 <b>*</b></span><input v-model="orderForm.paymentMethod" maxlength="64" placeholder="例如 CARD" @input="orderForm.paymentMethod = orderForm.paymentMethod.toUpperCase()" /></label>
-                <label class="form-field"><span>国家/地区 <b>*</b></span><input v-model="orderForm.country" maxlength="8" placeholder="例如 US" @input="orderForm.country = orderForm.country.toUpperCase()" /></label>
-                <label class="form-field"><span>币种 <b>*</b></span><input v-model="orderForm.currency" maxlength="8" placeholder="例如 USD" @input="orderForm.currency = orderForm.currency.toUpperCase()" /></label>
+                <label class="form-field"><span>产品 <b>*</b></span><select v-model="orderForm.productCode" :disabled="orderCreateLoading || !orderForm.merchantId || !orderSelectableProducts.length" @change="selectOrderProduct"><option value="">选择产品</option><option v-for="product in orderSelectableProducts" :key="product.productCode" :value="product.productCode">{{ product.name }} · {{ product.productCode }}</option></select></label>
+                <label class="form-field"><span>支付方式 <b>*</b></span><select v-model="orderForm.paymentMethod" :disabled="orderCreateLoading || !orderForm.productCode || !orderPaymentMethods.length"><option value="">选择支付方式</option><option v-for="paymentMethod in orderPaymentMethods" :key="paymentMethod" :value="paymentMethod">{{ paymentMethod }}</option></select></label>
+                <label class="form-field"><span>国家 / 地区 <b>*</b></span><select v-model="orderForm.country" :disabled="orderCreateLoading || !orderForm.productCode" @change="selectOrderCountry"><option value="">选择国家 / 地区</option><option v-for="country in orderCreateCountries" :key="country.code" :value="country.code">{{ country.name }} · {{ country.code }}</option></select></label>
+                <label class="form-field"><span>币种 <b>*</b></span><select v-model="orderForm.currency" :disabled="orderCreateLoading || !orderForm.country || !orderCreateCurrencies.length"><option value="">选择币种</option><option v-for="currency in orderCreateCurrencies" :key="currency.code" :value="currency.code">{{ currency.code }} · {{ currency.name }}</option></select></label>
               </div>
             </section>
             <section class="drawer-section">
@@ -1221,11 +1298,13 @@ onMounted(async () => {
       <ConfigurationCenterView
         v-else-if="active === '路由与渠道'"
         section="routing"
+        contained-drawer
         @notice="notice = $event"
       />
       <ConfigurationCenterView
         v-else-if="active === '费率管理'"
         section="pricing"
+        contained-drawer
         @notice="notice = $event"
       />
       <ReleaseManagementView

@@ -1,27 +1,35 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { ElPagination } from "element-plus";
 
 const props = withDefaults(defineProps<{
   page: number;
   pageSize: number;
   total: number;
   noun?: string;
+  pageSizes?: number[];
 }>(), {
   noun: "条记录",
+  pageSizes: () => [10, 20, 50, 100],
 });
 
-const emit = defineEmits<{ change: [page: number] }>();
-const totalPages = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)));
+const emit = defineEmits<{
+  change: [page: number];
+  sizeChange: [pageSize: number];
+}>();
 </script>
 
 <template>
-  <div v-if="total > pageSize" class="pagination">
-    <button class="outline-btn" :disabled="page <= 1" @click="emit('change', page - 1)">
-      上一页
-    </button>
-    <span>第 {{ page }} / {{ totalPages }} 页，共 {{ total }} {{ noun }}</span>
-    <button class="outline-btn" :disabled="page >= totalPages" @click="emit('change', page + 1)">
-      下一页
-    </button>
+  <div class="app-pagination">
+    <ElPagination
+      background
+      layout="total, sizes, prev, pager, next, jumper"
+      :current-page="page"
+      :page-size="pageSize"
+      :page-sizes="pageSizes"
+      :total="total"
+      :hide-on-single-page="false"
+      @current-change="emit('change', $event)"
+      @size-change="emit('sizeChange', $event)"
+    />
   </div>
 </template>

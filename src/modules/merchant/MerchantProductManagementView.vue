@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { LoaderCircle, Pencil, Plus, Save, Search, ToggleLeft } from "lucide-vue-next";
-import { ElOption, ElPagination, ElSelect } from "element-plus";
+import { ElOption, ElSelect } from "element-plus";
 import {
   bindMerchantProduct,
   changeMerchantProductStatus,
@@ -14,6 +14,7 @@ import {
 import { getProducts, type Product } from "../product/api";
 import { hasPermission } from "../../auth";
 import AppDrawer from "../../components/AppDrawer.vue";
+import AppPagination from "../../components/AppPagination.vue";
 
 const emit = defineEmits<{ notice: [message: string] }>();
 const products = ref<MerchantProduct[]>([]);
@@ -21,7 +22,7 @@ const loading = ref(false);
 const saving = ref(false);
 const drawerOpen = ref(false);
 const editing = ref<MerchantProduct | null>(null);
-const page = ref({ current: 1, pageSize: 20, total: 0 });
+const page = ref({ current: 1, pageSize: 10, total: 0 });
 const filters = ref({ merchantId: "", productCode: "", status: "" });
 const form = ref({ merchantId: "", productCode: "" });
 const merchants = ref<Merchant[]>([]);
@@ -168,12 +169,12 @@ onMounted(() => { void Promise.all([load(), loadReferenceOptions()]); });
         </tbody>
       </table>
     </div>
-    <div class="management-pagination"><ElPagination background layout="sizes, total, prev, pager, next" :current-page="page.current" :page-size="page.pageSize" :page-sizes="[20, 50, 100]" :total="page.total" :hide-on-single-page="false" @current-change="load" @size-change="changePageSize" /></div>
-  </section>
-  <AppDrawer v-if="drawerOpen" :title="editing ? '编辑商户产品绑定' : '新增商户产品绑定'" description="MERCHANT PRODUCT" @close="closeDrawer">
+    <AppPagination :page="page.current" :page-size="page.pageSize" :total="page.total" @change="load" @size-change="changePageSize" />
+    <AppDrawer v-if="drawerOpen" :title="editing ? '编辑商户产品绑定' : '新增商户产品绑定'" description="MERCHANT PRODUCT" contained @close="closeDrawer">
     <form class="merchant-product-drawer-form" @submit.prevent="save">
       <section class="drawer-section"><h4>绑定信息</h4><p class="drawer-copy">仅可选择启用中的商户与产品；已绑定的产品不会在新增时重复显示。</p><div class="drawer-form-grid"><label class="form-field"><span>商户 <b>*</b></span><ElSelect v-model="form.merchantId" filterable :loading="referenceLoading" placeholder="选择商户" @change="form.productCode = ''"><ElOption v-for="merchant in merchants" :key="merchant.merchantId" :label="`${merchant.name} · ${merchant.merchantId}`" :value="merchant.merchantId" /></ElSelect></label><label class="form-field"><span>产品编码 <b>*</b></span><ElSelect v-model="form.productCode" filterable :loading="referenceLoading" :disabled="!form.merchantId" placeholder="先选择商户"><ElOption v-for="product in availableProducts" :key="product.productCode" :label="`${product.name} · ${product.productCode}`" :value="product.productCode" /></ElSelect><small v-if="form.merchantId && !availableProducts.length && !editing">该商户已绑定全部启用产品</small></label></div></section>
       <div class="drawer-actions"><button class="outline-btn" type="button" :disabled="saving" @click="closeDrawer">取消</button><button class="primary-btn" type="submit" :disabled="saving || referenceLoading || !form.merchantId || !form.productCode"><Save :size="16" />{{ saving ? "保存中" : editing ? "保存绑定" : "创建绑定" }}</button></div>
     </form>
   </AppDrawer>
+  </section>
 </template>

@@ -12,7 +12,7 @@ const emit = defineEmits<{ notice: [message: string] }>();
 const loading = ref(false);
 const saving = ref(false);
 const releases = ref<ConfigRelease[]>([]);
-const page = ref({ current: 1, pageSize: 20, total: 0 });
+const page = ref({ current: 1, pageSize: 10, total: 0 });
 const drawer = ref<"create" | "diff" | null>(null);
 const releaseReason = ref("");
 const releaseConfig = ref("{}");
@@ -24,10 +24,10 @@ const canCreate = computed(() => authState.user?.roles.some((role) => ["ADMIN", 
 const canApprove = computed(() => authState.user?.roles.includes("ADMIN") ?? false);
 const actionLabels = { submit: "提交审核", approve: "审核通过", publish: "正式发布", rollback: "回滚生成草稿" } as const;
 
-const load = async () => {
+const load = async (current = page.value.current) => {
   loading.value = true;
   try {
-    const result = await getReleases({ page: page.value.current, pageSize: page.value.pageSize });
+    const result = await getReleases({ page: current, pageSize: page.value.pageSize });
     releases.value = result.items;
     page.value = { current: result.page, pageSize: result.pageSize, total: result.total };
   } catch (error) {
@@ -36,6 +36,7 @@ const load = async () => {
     loading.value = false;
   }
 };
+const changePageSize = (pageSize: number) => { page.value.pageSize = pageSize; void load(1); };
 
 const parseConfiguration = () => {
   try {
@@ -103,7 +104,7 @@ onMounted(load);
       <div><span class="eyebrow">RELEASE CONTROL</span><h3>版本发布</h3></div>
       <div class="button-row">
         <button v-if="canCreate" class="primary-btn" type="button" @click="drawer = 'create'"><Plus :size="16" />创建草稿</button>
-        <button class="icon-btn" type="button" title="刷新" :disabled="loading" @click="load"><RefreshCw :class="{ spin: loading }" :size="16" /></button>
+        <button class="icon-btn" type="button" title="刷新" :disabled="loading" @click="load()"><RefreshCw :class="{ spin: loading }" :size="16" /></button>
       </div>
     </div>
 
@@ -137,7 +138,7 @@ onMounted(load);
         </tbody>
       </table>
     </div>
-    <AppPagination :page="page.current" :page-size="page.pageSize" :total="page.total" noun="个版本" @change="(current) => { page.current = current; load(); }" />
+    <AppPagination :page="page.current" :page-size="page.pageSize" :total="page.total" noun="个版本" @change="load" @size-change="changePageSize" />
 
     <AppDrawer v-if="drawer === 'create'" title="创建发布草稿" description="RELEASE CONTROL" @close="drawer = null">
       <form class="drawer-section" @submit.prevent="createDraft">

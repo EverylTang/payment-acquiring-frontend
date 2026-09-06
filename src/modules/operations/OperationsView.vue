@@ -22,12 +22,14 @@ const audits = ref<OperationAudit[]>([]);
 const billForm = ref({ billId: "", channelId: "", billDate: new Date().toISOString().slice(0, 10), currency: "USD", totalAmount: 0, totalCount: 0, lines: "[]" });
 const reconcileBillId = ref("");
 const loading = ref(false);
-const localPageSize = 20;
+const localPageSize = ref(20);
 const outboxPage = ref(1);
 const differencePage = ref(1);
-const auditPage = ref({ current: 1, pageSize: 20, total: 0 });
-const visibleOutbox = computed(() => outbox.value.slice((outboxPage.value - 1) * localPageSize, outboxPage.value * localPageSize));
-const visibleDifferences = computed(() => differences.value.slice((differencePage.value - 1) * localPageSize, differencePage.value * localPageSize));
+const auditPage = ref({ current: 1, pageSize: 10, total: 0 });
+const visibleOutbox = computed(() => outbox.value.slice((outboxPage.value - 1) * localPageSize.value, outboxPage.value * localPageSize.value));
+const visibleDifferences = computed(() => differences.value.slice((differencePage.value - 1) * localPageSize.value, differencePage.value * localPageSize.value));
+const changeOutboxPageSize = (pageSize: number) => { localPageSize.value = pageSize; outboxPage.value = 1; };
+const changeDifferencePageSize = (pageSize: number) => { localPageSize.value = pageSize; differencePage.value = 1; };
 const load = async (currentAuditPage = auditPage.value.current) => {
   loading.value = true;
   try {
@@ -120,7 +122,7 @@ onMounted(load);
         ><button class="outline-btn" @click="redrive(event)">重新投递</button>
       </div>
     </div>
-    <AppPagination :page="outboxPage" :page-size="localPageSize" :total="outbox.length" noun="条死信消息" @change="(page) => outboxPage = page" />
+    <AppPagination :page="outboxPage" :page-size="localPageSize" :total="outbox.length" noun="条死信消息" @change="(page) => outboxPage = page" @size-change="changeOutboxPageSize" />
     <div class="operation-form">
       <div class="panel-title"><div><span class="eyebrow">RECONCILIATION</span><h4>导入渠道账单</h4></div></div>
       <div class="form-grid"><input v-model="billForm.billId" placeholder="账单 ID" /><input v-model="billForm.channelId" placeholder="渠道 ID" /><input v-model="billForm.billDate" type="date" /><input v-model="billForm.currency" maxlength="3" placeholder="币种" /><input v-model.number="billForm.totalAmount" type="number" min="0" step="0.01" placeholder="账单总金额" /><input v-model.number="billForm.totalCount" type="number" min="0" placeholder="账单笔数" /></div>
@@ -142,7 +144,7 @@ onMounted(load);
         ><button class="outline-btn" @click="resolve(item)">处理</button>
       </div>
     </div>
-    <AppPagination :page="differencePage" :page-size="localPageSize" :total="differences.length" noun="条差异" @change="(page) => differencePage = page" />
+    <AppPagination :page="differencePage" :page-size="localPageSize" :total="differences.length" noun="条差异" @change="(page) => differencePage = page" @size-change="changeDifferencePageSize" />
     <h4>后台操作审计</h4>
     <div v-if="!audits.length" class="empty">暂无操作审计记录</div>
     <div v-else class="record-list">
@@ -153,7 +155,7 @@ onMounted(load);
         <b>{{ item.reason || "--" }}</b>
       </div>
     </div>
-    <AppPagination :page="auditPage.current" :page-size="auditPage.pageSize" :total="auditPage.total" noun="条审计记录" @change="load" />
+    <AppPagination :page="auditPage.current" :page-size="auditPage.pageSize" :total="auditPage.total" noun="条审计记录" @change="load" @size-change="(size) => { auditPage.pageSize = size; load(1); }" />
     <AppDialog
       v-if="resolving"
       title="处理对账差异"

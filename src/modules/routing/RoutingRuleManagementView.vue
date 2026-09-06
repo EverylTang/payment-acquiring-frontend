@@ -18,7 +18,7 @@ import { getChannels, type Channel } from "../configuration/api";
 const emit = defineEmits<{ notice: [message: string] }>();
 const rules = ref<RoutingRule[]>([]);
 const editing = ref<RoutingRule | null>(null);
-const page = ref({ current: 1, pageSize: 20, total: 0 });
+const page = ref({ current: 1, pageSize: 10, total: 0 });
 const loading = ref(false);
 const products = ref<Product[]>([]), merchants = ref<Merchant[]>([]), channels = ref<Channel[]>([]);
 const saving = ref(false);
@@ -46,6 +46,7 @@ const load = async (current = page.value.current) => {
     loading.value = false;
   }
 };
+const changePageSize = (pageSize: number) => { page.value.pageSize = pageSize; void load(1); };
 
 const save = async () => {
   saving.value = true;
@@ -190,6 +191,7 @@ onMounted(async () => { await Promise.all([load(), getProducts({ page: 1, pageSi
       :total="page.total"
       noun="条规则"
       @change="(current) => load(current)"
+      @size-change="changePageSize"
     />
   </section>
 </template>

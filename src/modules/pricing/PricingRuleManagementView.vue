@@ -15,7 +15,7 @@ import AppPagination from "../../components/AppPagination.vue";
 const emit = defineEmits<{ notice: [message: string] }>();
 const rules = ref<PricingRule[]>([]);
 const editing = ref<PricingRule | null>(null);
-const page = ref({ current: 1, pageSize: 20, total: 0 });
+const page = ref({ current: 1, pageSize: 10, total: 0 });
 const loading = ref(false);
 const saving = ref(false);
 const form = ref({
@@ -47,6 +47,7 @@ const load = async (current = page.value.current) => {
     loading.value = false;
   }
 };
+const changePageSize = (pageSize: number) => { page.value.pageSize = pageSize; void load(1); };
 
 const save = async () => {
   saving.value = true;
@@ -220,6 +221,7 @@ onMounted(load);
       :total="page.total"
       noun="条规则"
       @change="(current) => load(current)"
+      @size-change="changePageSize"
     />
   </section>
 </template>

@@ -15,7 +15,6 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-vue-next";
-import { ElPagination } from "element-plus";
 import {
   createRole,
   getPermissionCatalog,
@@ -30,6 +29,7 @@ import {
 } from "./api";
 import { hasPermission } from "../../auth";
 import AppDrawer from "../../components/AppDrawer.vue";
+import AppPagination from "../../components/AppPagination.vue";
 
 type Section = "access" | "scope";
 type PermissionTreeNode = PermissionCatalog["menus"][number] & {
@@ -42,7 +42,7 @@ type PermissionTreeRow =
 
 const emit = defineEmits<{ notice: [message: string] }>();
 const roles = ref<AdminRole[]>([]);
-const page = ref({ current: 1, pageSize: 20, total: 0 });
+const page = ref({ current: 1, pageSize: 10, total: 0 });
 const filters = ref({ roleName: "", roleCode: "" });
 const catalog = ref<PermissionCatalog | null>(null);
 const selectedRole = ref("");
@@ -421,7 +421,7 @@ onMounted(load);
 
     <div v-if="loading" class="empty"><LoaderCircle class="spin" :size="22" />加载中…</div>
     <div v-else class="table-wrap management-table-wrap"><table class="data-table role-table"><colgroup><col class="role-name-column" /><col class="role-code-column" /><col class="management-actions-column" /></colgroup><thead><tr><th>角色名称</th><th>角色编码</th><th class="actions">操作</th></tr></thead><tbody><tr v-for="role in roles" :key="role.roleCode"><td><strong>{{ role.roleName }}</strong></td><td><span class="mono">{{ role.roleCode }}</span></td><td class="actions"><div class="management-row-actions"><button v-if="hasPermission('system:role:update')" class="outline-btn" type="button" @click="openAuthorization(role)"><ShieldCheck :size="16" />授权</button><button v-if="hasPermission('system:role:update')" class="outline-btn" type="button" @click="openEditRole(role)"><Pencil :size="15" />编辑</button></div></td></tr><tr v-if="!roles.length"><td colspan="3" class="empty">暂无符合条件的角色</td></tr></tbody></table></div>
-    <div class="management-pagination"><ElPagination background layout="sizes, total, prev, pager, next" :current-page="page.current" :page-size="page.pageSize" :page-sizes="[20, 50, 100]" :total="page.total" :hide-on-single-page="false" @current-change="load" @size-change="changePageSize" /></div>
+    <AppPagination :page="page.current" :page-size="page.pageSize" :total="page.total" @change="load" @size-change="changePageSize" />
   </section>
   <AppDrawer v-if="authorizationDrawerOpen && selectedRoleDetail" title="角色授权" :description="`${selectedRoleDetail.roleName} · ${selectedRoleDetail.roleCode}`" @close="closeAuthorization">
     <section class="drawer-section role-authorization" aria-live="polite">
