@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ElPagination } from "element-plus";
 
-const props = withDefaults(defineProps<{
+withDefaults(defineProps<{
   page: number;
   pageSize: number;
   total: number;
@@ -28,8 +28,8 @@ const emit = defineEmits<{
       :page-sizes="pageSizes"
       :total="total"
       :hide-on-single-page="false"
-      @current-change="emit('change', $event)"
-      @size-change="emit('sizeChange', $event)"
+      @update:current-page="emit('change', $event)"
+      @update:page-size="emit('sizeChange', $event)"
     />
   </div>
 </template>

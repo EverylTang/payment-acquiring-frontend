@@ -14,9 +14,17 @@ export type SettlementBill = {
 };
 export type SettlementBillDetail = SettlementBill & { lines: Array<Record<string, unknown>> };
 export type OperationAudit = { auditId: string; operatorId: string; action: string; resourceType: string; resourceId: string; requestId?: string; reason?: string; createdAt: string };
+export type PaymentEvent = Record<string, string | number | boolean | null>;
+export type ExpiredPaymentSuccess = Record<string, string | number | boolean | null>;
 export const getAdminList = (resource: string, params: { page?: number; pageSize?: number } = {}) => request<{ items: AdminRecord[]; page: number; pageSize: number; total: number }>(`/admin/v1/${resource}?${new URLSearchParams({ page: String(params.page || 1), pageSize: String(params.pageSize || 20) })}`);
 export const getDeadOutbox = () => request<{ items: OutboxEvent[] }>("/admin/v1/outbox/dead");
 export const redriveOutbox = (eventId: string, reason: string) => request<OutboxEvent>(`/admin/v1/outbox/${encodeURIComponent(eventId)}/redrive`, { method: "POST", body: JSON.stringify({ reason }) });
+export const getOutboxEvent = (eventId: string) => request<Record<string, unknown>>(`/admin/v1/outbox/${encodeURIComponent(eventId)}`);
+export const getFailedPaymentEvents = (limit = 50) => request<{ items: PaymentEvent[] }>(`/admin/v1/payment-events/failed?${new URLSearchParams({ limit: String(limit) })}`);
+export const getPaymentEvent = (id: string | number) => request<PaymentEvent>(`/admin/v1/payment-events/${encodeURIComponent(String(id))}`);
+export const replayPaymentEvent = (id: string | number, reason: string) => request<PaymentEvent>(`/admin/v1/payment-events/${encodeURIComponent(String(id))}/replay`, { method: "POST", body: JSON.stringify({ reason }) });
+export const getExpiredPaymentSuccesses = (status = "OPEN", limit = 50) => request<{ items: ExpiredPaymentSuccess[] }>(`/admin/v1/reconciliation/expired-payment-successes?${new URLSearchParams({ status, limit: String(limit) })}`);
+export const resolveExpiredPaymentSuccess = (exceptionId: string, resolution: string) => request<Record<string, unknown>>(`/admin/v1/reconciliation/expired-payment-successes/${encodeURIComponent(exceptionId)}/resolve`, { method: "POST", body: JSON.stringify({ resolution }) });
 export const getReconciliationDifferences = () => request<{ items: ReconciliationDifference[] }>("/admin/v1/reconciliation/differences");
 export const resolveReconciliationDifference = (id: string, reason: string) => request<Record<string, string>>(`/admin/v1/reconciliation/differences/${encodeURIComponent(id)}/resolve`, { method: "POST", body: JSON.stringify({ reason }) });
 export const getOperationAudits = (params: { page?: number; pageSize?: number } = {}) =>

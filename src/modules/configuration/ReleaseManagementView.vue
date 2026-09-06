@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { Check, FileDiff, Plus, RefreshCw, RotateCcw, Send } from "lucide-vue-next";
-import { authState } from "../../auth";
+import { hasPermission } from "../../auth";
 import AppDialog from "../../components/AppDialog.vue";
 import AppDrawer from "../../components/AppDrawer.vue";
 import AppPagination from "../../components/AppPagination.vue";
@@ -20,8 +20,12 @@ const selectedRelease = ref<ConfigRelease | null>(null);
 const selectedDiff = ref<Record<string, unknown> | null>(null);
 const pending = ref<{ release: ConfigRelease; action: "submit" | "approve" | "publish" | "rollback" } | null>(null);
 
-const canCreate = computed(() => authState.user?.roles.some((role) => ["ADMIN", "OPS"].includes(role)) ?? false);
-const canApprove = computed(() => authState.user?.roles.includes("ADMIN") ?? false);
+const canCreate = computed(() => hasPermission("config-release:create"));
+const canSubmit = computed(() => hasPermission("config-release:submit"));
+const canApprove = computed(() => hasPermission("config-release:approve"));
+const canPublish = computed(() => hasPermission("config-release:publish"));
+const canRollback = computed(() => hasPermission("config-release:rollback"));
+const canDiff = computed(() => hasPermission("config-release:diff"));
 const actionLabels = { submit: "提交审核", approve: "审核通过", publish: "正式发布", rollback: "回滚生成草稿" } as const;
 
 const load = async (current = page.value.current) => {
@@ -128,11 +132,11 @@ onMounted(load);
             <td>{{ item.createdBy }}<small class="table-subtext table-date">{{ item.createdAt }}</small></td>
             <td>{{ item.approvedBy || "--" }}<small class="table-subtext table-date">{{ item.publishedAt || "--" }}</small></td>
             <td class="actions">
-              <button class="icon-btn" type="button" title="查看版本差异" @click="showDiff(item)"><FileDiff :size="16" /></button>
-              <button v-if="canCreate && item.status === 'DRAFT'" class="icon-btn" type="button" title="提交审核" :disabled="saving" @click="pending = { release: item, action: 'submit' }"><Send :size="16" /></button>
+              <button v-if="canDiff" class="icon-btn" type="button" title="查看版本差异" @click="showDiff(item)"><FileDiff :size="16" /></button>
+              <button v-if="canSubmit && item.status === 'DRAFT'" class="icon-btn" type="button" title="提交审核" :disabled="saving" @click="pending = { release: item, action: 'submit' }"><Send :size="16" /></button>
               <button v-if="canApprove && item.status === 'IN_REVIEW'" class="icon-btn" type="button" title="审核通过" :disabled="saving" @click="pending = { release: item, action: 'approve' }"><Check :size="16" /></button>
-              <button v-if="canApprove && item.status === 'APPROVED'" class="icon-btn" type="button" title="正式发布" :disabled="saving" @click="pending = { release: item, action: 'publish' }"><Send :size="16" /></button>
-              <button v-if="canApprove && item.status === 'PUBLISHED'" class="icon-btn" type="button" title="回滚生成草稿" :disabled="saving" @click="pending = { release: item, action: 'rollback' }"><RotateCcw :size="16" /></button>
+              <button v-if="canPublish && item.status === 'APPROVED'" class="icon-btn" type="button" title="正式发布" :disabled="saving" @click="pending = { release: item, action: 'publish' }"><Send :size="16" /></button>
+              <button v-if="canRollback && item.status === 'PUBLISHED'" class="icon-btn" type="button" title="回滚生成草稿" :disabled="saving" @click="pending = { release: item, action: 'rollback' }"><RotateCcw :size="16" /></button>
             </td>
           </tr>
         </tbody>

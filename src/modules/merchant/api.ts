@@ -74,6 +74,7 @@ const merchantProductQuery = (params: MerchantProductListParams) => {
   return query;
 };
 export const getMerchantProducts = (params: MerchantProductListParams = {}) => request<PageResponse<MerchantProduct>>(`/admin/v1/merchant-products?${merchantProductQuery(params)}`);
+export const getMerchantProduct = (id: string) => request<MerchantProduct>(`/admin/v1/merchant-products/${encodeURIComponent(id)}`);
 export const bindMerchantProduct = (payload: { merchantId: string; productCode: string }) => request<MerchantProduct>("/admin/v1/merchant-products", { method: "POST", body: JSON.stringify(payload) });
 export const updateMerchantProduct = (id: string, payload: { merchantId: string; productCode: string }) => request<MerchantProduct>(`/admin/v1/merchant-products/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) });
 export const changeMerchantProductStatus = (id: string, status: string) => request<void>(`/admin/v1/merchant-products/${encodeURIComponent(id)}/status`, { method: "PATCH", body: JSON.stringify({ status }) });

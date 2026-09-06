@@ -183,7 +183,7 @@ onMounted(load);
       <input v-model="form.maxFee" type="number" step="0.01" placeholder="最大手续费（可选）" />
       <input v-model="form.minAmount" type="number" step="0.01" placeholder="最小交易金额" />
       <input v-model="form.maxAmount" type="number" step="0.01" placeholder="最大交易金额" />
-      <button v-if="hasPermission(editing ? 'pricing:update' : 'pricing:create')" class="primary-btn" :disabled="saving" @click="save">
+      <button v-if="hasPermission(editing ? 'pricing-rule:update' : 'pricing-rule:create')" class="primary-btn" :disabled="saving" @click="save">
         <Save :size="16" />{{ editing ? "保存规则" : "新增规则" }}
       </button>
       <button v-if="editing" class="outline-btn" @click="cancel">取消</button>
@@ -202,13 +202,13 @@ onMounted(load);
         </div>
         <span class="status-badge" :class="'st-' + rule.status.toLowerCase()">{{ rule.status }}</span>
         <div class="button-row">
-          <button v-if="hasPermission('pricing:update')" class="icon-btn" title="编辑规则" @click="edit(rule)">
+          <button v-if="hasPermission('pricing-rule:update')" class="icon-btn" title="编辑规则" @click="edit(rule)">
             <Pencil :size="16" />
           </button>
-          <button v-if="hasPermission('pricing:status')" class="icon-btn" title="切换规则状态" @click="toggle(rule)">
+          <button v-if="hasPermission('pricing-rule:status')" class="icon-btn" title="切换规则状态" @click="toggle(rule)">
             <ToggleLeft :size="16" />
           </button>
-          <button v-if="hasPermission('pricing:delete')" class="icon-btn" title="删除规则" @click="remove(rule)">
+          <button v-if="hasPermission('pricing-rule:delete')" class="icon-btn" title="删除规则" @click="remove(rule)">
             <Trash2 :size="16" />
           </button>
         </div>

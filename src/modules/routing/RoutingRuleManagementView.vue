@@ -157,7 +157,7 @@ onMounted(async () => { await Promise.all([load(), getProducts({ page: 1, pageSi
       <select v-model="form.channelId"><option value="">选择渠道</option><option v-for="c in channels" :key="c.channelId" :value="c.channelId">{{ c.name }} · {{ c.channelId }}</option></select>
       <input v-model.number="form.priority" type="number" min="0" placeholder="优先级" />
       <input v-model.number="form.weight" type="number" min="1" placeholder="规则权重" />
-      <button v-if="hasPermission(editing ? 'routing:update' : 'routing:create')" class="primary-btn" :disabled="saving" @click="save">
+      <button v-if="hasPermission(editing ? 'routing-rule:update' : 'routing-rule:create')" class="primary-btn" :disabled="saving" @click="save">
         <Save :size="16" />{{ editing ? "保存规则" : "新增规则" }}
       </button>
       <button v-if="editing" class="outline-btn" @click="cancel">取消</button>
@@ -172,13 +172,13 @@ onMounted(async () => { await Promise.all([load(), getProducts({ page: 1, pageSi
         </div>
         <span class="status-badge" :class="'st-' + rule.status.toLowerCase()">{{ rule.status }}</span>
         <div class="button-row">
-          <button v-if="hasPermission('routing:update')" class="icon-btn" title="编辑规则" @click="edit(rule)">
+          <button v-if="hasPermission('routing-rule:update')" class="icon-btn" title="编辑规则" @click="edit(rule)">
             <Pencil :size="16" />
           </button>
-          <button v-if="hasPermission('routing:status')" class="icon-btn" title="切换规则状态" @click="toggle(rule)">
+          <button v-if="hasPermission('routing-rule:status')" class="icon-btn" title="切换规则状态" @click="toggle(rule)">
             <ToggleLeft :size="16" />
           </button>
-          <button v-if="hasPermission('routing:delete')" class="icon-btn" title="删除规则" @click="remove(rule)">
+          <button v-if="hasPermission('routing-rule:delete')" class="icon-btn" title="删除规则" @click="remove(rule)">
             <Trash2 :size="16" />
           </button>
         </div>

@@ -20,7 +20,7 @@ const emit = defineEmits<{ close: [] }>();
         </div>
         <button class="icon-btn" title="关闭" @click="emit('close')"><X :size="17" /></button>
       </div>
-      <div class="drawer-body"><slot /></div>
+      <div class="drawer-body"><div class="drawer-content"><slot /></div></div>
     </div>
   </div>
 </template>

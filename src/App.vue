@@ -32,7 +32,7 @@ import { getActiveCountries, getActiveCurrencies, type Country, type Currency } 
 import { getProductCapabilities, getProducts, type Product, type ProductCapability } from "./modules/product/api";
 import { getRoles, getUsers, type AdminUser } from "./modules/user/api";
 import { getPermissionCatalog, getRolePermissions, type AdminRole, type PermissionCatalog } from "./modules/permission/api";
-import { cancelOrder, createOrder, createPaymentAttempt, getOrder, getOrderHealth, getOrderPage, getOrderStatistics, resendOrderNotification, type CreateOrderRequest, type Order, type OrderPage } from "./modules/order/api";
+import { cancelOrder, createOrder, getOrder, getOrderHealth, getOrderPage, getOrderStatistics, resendOrderNotification, type CreateOrderRequest, type Order, type OrderPage } from "./modules/order/api";
 import { getChannelHealth, getOverview, getSnapshot, type DashboardOverview } from "./modules/dashboard/api";
 import { authState, hasPermission, signOut } from "./auth";
 import { changePassword } from "./modules/auth/api";
@@ -669,17 +669,6 @@ const createNewOrder = async () => {
     orderDrawer.value = "detail";
   }
 };
-const startPayment = async () => {
-  if (!selectedOrder.value) return;
-  const orderId = selectedOrder.value.orderId;
-  const order = await run(async () => {
-    await createPaymentAttempt(orderId);
-    return getOrder(orderId);
-  }, "支付已发起");
-  if (!order) return;
-  selectedOrder.value = order;
-  await loadOrders(orderPage.value.page);
-};
 const openCreateOrder = async () => {
   orderForm.value = {
     merchantId: "",
@@ -957,7 +946,7 @@ onMounted(async () => {
             <label class="management-form-item"><span>订单状态</span><select v-model="orderFilters.status"><option value="">全部状态</option><option value="CREATED">已创建</option><option value="PAYING">处理中</option><option value="SUCCESS">成功</option><option value="FAILED">失败</option><option value="UNKNOWN">待确认</option><option value="CANCELED">已取消</option></select></label>
             <label class="management-form-item"><span>交易币种</span><select v-model="orderFilters.currency"><option value="">全部币种</option><option v-for="currency in orderFilterCurrencies" :key="currency.code" :value="currency.code">{{ currency.code }} · {{ currency.name }}</option></select></label>
           </div>
-          <div class="order-filter-actions"><span class="toolbar-summary">共 {{ orderPage.total }} 笔订单</span><button class="outline-btn" type="button" @click="resetOrderFilters">重置</button><button class="primary-btn" type="submit"><Search :size="16" />查询</button><button class="primary-btn" type="button" @click="openCreateOrder">创建订单</button></div>
+          <div class="order-filter-actions"><span class="toolbar-summary">共 {{ orderPage.total }} 笔订单</span><button class="outline-btn" type="button" @click="resetOrderFilters">重置</button><button class="primary-btn" type="submit"><Search :size="16" />查询</button><button v-if="hasPermission('order:manage')" class="primary-btn" type="button" @click="openCreateOrder">创建订单</button></div>
         </form>
         <div v-if="!listLoading && orderPage.items.length" class="table-wrap order-list">
           <table class="data-table">
@@ -1034,13 +1023,14 @@ onMounted(async () => {
           </form>
           <template v-else>
             <div v-if="!selectedOrder" class="drawer-section">
-              <p class="drawer-copy">输入订单 ID 后可查看状态、支付尝试和退款信息。</p>
+              <p class="drawer-copy">输入订单 ID 后可查看状态、渠道处理结果和退款信息。</p>
               <div class="search-row drawer-search">
                 <input v-model="queryId" placeholder="输入订单 ID" autofocus @keyup.enter="findOrder" />
                 <button class="primary-btn" @click="findOrder"><Search :size="16" />查询</button>
               </div>
             </div>
             <template v-else>
+              <div class="order-detail-content">
               <div class="order-detail-hero">
                 <div><span class="eyebrow">{{ selectedOrder.orderId }}</span><h4>{{ selectedOrder.merchantOrderNo }} <small class="order-type-label" :class="selectedOrder.orderType === 'PAYOUT' ? 'payout' : 'payin'">{{ selectedOrder.orderType === "PAYOUT" ? "出款订单" : "收单订单" }}</small></h4><p>{{ selectedOrder.merchantId }} · {{ selectedOrder.productCode }} · {{ selectedOrder.paymentMethod }}</p></div>
                 <span class="status-badge" :class="'st-' + selectedOrder.status.toLowerCase()">{{ selectedOrder.status }}</span>
@@ -1077,7 +1067,6 @@ onMounted(async () => {
                 <h4>订单处置</h4>
                 <div class="button-row drawer-actions">
                   <button class="outline-btn" :disabled="busy" title="重新读取订单最新状态" @click="refreshOrderStatus"><RefreshCw :size="16" />刷新状态</button>
-                  <button v-if="selectedOrder.status === 'CREATED' && hasPermission('order:manage')" class="primary-btn" :disabled="busy" title="创建渠道支付尝试并获取支付链接" @click="startPayment"><WalletCards :size="16" />发起支付</button>
                   <button class="danger-btn" :disabled="busy || !!cancelOrderDisabledReason" :title="cancelOrderDisabledReason || '取消未完成订单'" @click="cancelSelectedOrder"><XCircle :size="16" />取消订单</button>
                   <button class="outline-btn" :disabled="busy || !!notificationDisabledReason" :title="notificationDisabledReason || '将成功订单的通知重新加入投递队列'" @click="resendNotification">再次通知商户</button>
                 </div>
@@ -1085,6 +1074,7 @@ onMounted(async () => {
                 <p v-if="notificationDisabledReason" class="order-action-hint">再次通知不可用：{{ notificationDisabledReason }}</p>
               </div>
               <RefundView v-if="canRefundSelectedOrder" :order="selectedOrder" @notice="notice = $event" />
+              </div>
             </template>
           </template>
         </AppDrawer>

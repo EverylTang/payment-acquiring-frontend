@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { Pencil, Plus, RefreshCw, Save, ToggleLeft, Trash2 } from "lucide-vue-next";
 import { ElForm, ElFormItem, ElInput, ElInputNumber, ElOption, ElSelect } from "element-plus";
-import { authState } from "../../auth";
+import { hasPermission } from "../../auth";
 import {
   changeChannelStatus,
   changePricingRuleStatus,
@@ -81,14 +81,27 @@ const newPricingForm = (): PricingForm => ({ ruleId: "", releaseId: "", productC
 const pricingForm = ref(newPricingForm());
 const riskForm = ref({ policyId: "", releaseId: "", name: "", priority: 100, decision: "REVIEW", condition: "{}" });
 
-const canOperate = computed(() => {
-  const roles = authState.user?.roles || [];
-  if (roles.includes("ADMIN")) return true;
-  if (props.section === "routing") return roles.includes("OPS");
-  if (props.section === "pricing") return roles.includes("OPS") || roles.includes("FINANCE");
-  return roles.includes("RISK");
+const canCreate = computed(() => {
+  if (props.section === "routing") {
+    return routingView.value === "channels"
+      ? hasPermission("channel:create")
+      : hasPermission("routing-rule:create");
+  }
+  if (props.section === "pricing") return hasPermission("pricing-rule:create");
+  return hasPermission("risk-policy:create");
 });
-const canApprove = computed(() => authState.user?.roles.includes("ADMIN") ?? false);
+const canEdit = (kind: "channel" | "route" | "pricing" | "risk") => {
+  if (kind === "channel") return hasPermission("channel:update");
+  if (kind === "route") return hasPermission("routing-rule:update");
+  if (kind === "pricing") return hasPermission("pricing-rule:update");
+  return hasPermission("risk-policy:update");
+};
+const canToggle = (kind: "channel" | "route" | "pricing" | "risk") => {
+  if (kind === "channel") return hasPermission("channel:status");
+  if (kind === "route") return hasPermission("routing-rule:status");
+  if (kind === "pricing") return hasPermission("pricing-rule:status");
+  return hasPermission("risk-policy:status");
+};
 const title = computed(() => ({ routing: "路由与渠道", pricing: "费率管理", risk: "风控工作台" })[props.section]);
 const createLabel = computed(() => ({ routing: routingView.value === "channels" ? "新增渠道" : "新增路由规则", pricing: "新增费率规则", risk: "新增风控策略" })[props.section]);
 const configDrawerTitle = computed(() => editingChannel.value ? "编辑渠道" : "新增渠道");
@@ -404,7 +417,7 @@ onMounted(load);
     <div class="panel-title">
       <div><span class="eyebrow">CONFIGURATION CENTER</span><h3>{{ title }}</h3></div>
       <div class="button-row">
-        <button v-if="canOperate" class="primary-btn" @click="section === 'routing' ? (routingView === 'routes' ? openRouteCreate() : openChannelCreate()) : section === 'pricing' ? openPricingCreate() : openRiskCreate()">{{ createLabel }}</button>
+        <button v-if="canCreate" class="primary-btn" @click="section === 'routing' ? (routingView === 'routes' ? openRouteCreate() : openChannelCreate()) : section === 'pricing' ? openPricingCreate() : openRiskCreate()">{{ createLabel }}</button>
         <button class="icon-btn" title="刷新" :disabled="loading" @click="load"><RefreshCw :class="{ spin: loading }" :size="16" /></button>
       </div>
     </div>
@@ -435,7 +448,7 @@ onMounted(load);
                 <td>{{ item.provider || "--" }}<small class="table-subtext url-text" :title="item.requestUrl">{{ item.requestUrl || "--" }}</small></td>
                 <td><strong class="mono">{{ item.signatureProfile }}</strong><small class="table-subtext"><span class="configuration-count">{{ Object.keys(item.configuration || {}).length }} 项参数 · {{ Object.keys(item.credentials || {}).length }} 个凭据</span> · 参数与凭据采用 JSON 配置</small></td>
                 <td><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ channelStatusLabel(item.status) }}</span></td>
-                <td class="actions"><button v-if="canOperate" class="icon-btn" title="编辑渠道" @click="editChannel(item)"><Pencil :size="16" /></button><button v-if="canApprove" class="icon-btn" title="切换渠道状态" @click="toggle('channel', item.channelId, item.status)"><ToggleLeft :size="17" /></button></td>
+                <td class="actions"><button v-if="canEdit('channel')" class="icon-btn" title="编辑渠道" @click="editChannel(item)"><Pencil :size="16" /></button><button v-if="canToggle('channel')" class="icon-btn" title="切换渠道状态" @click="toggle('channel', item.channelId, item.status)"><ToggleLeft :size="17" /></button></td>
               </tr>
             </tbody>
           </table>
@@ -446,21 +459,21 @@ onMounted(load);
         <div class="section-heading"><div><span class="eyebrow">ROUTING POLICY</span><h4>路由规则</h4></div><span>{{ routePage.total }} 条规则</span></div>
         <div v-if="loading" class="empty">加载中…</div>
         <div v-else-if="!routes.length" class="empty">暂无路由规则</div>
-        <div v-else class="configuration-table-wrap"><table class="data-table configuration-table"><thead><tr><th>适用条件</th><th>目标渠道</th><th>优先级 / 流量权重</th><th>作用范围</th><th>版本</th><th>状态</th><th class="actions">操作</th></tr></thead><tbody><tr v-for="item in routes" :key="item.ruleId"><td><strong>{{ item.productCode }}</strong><small class="table-subtext">{{ item.paymentMethod }} · {{ item.currency }}</small></td><td><strong class="mono">{{ item.channelId }}</strong></td><td><strong>{{ item.priority }} / {{ item.weight }}</strong><small class="table-subtext">同优先级内按比例分流</small></td><td>{{ item.merchantId || "默认商户池" }}<small class="table-subtext">{{ item.country || "全球" }}</small></td><td><span class="mono">v{{ item.releaseVersion }} · {{ item.ruleId }}</span></td><td><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span></td><td class="actions"><button v-if="canOperate" class="icon-btn" title="编辑路由规则" @click="editRoute(item)"><Pencil :size="16" /></button><button v-if="canApprove" class="icon-btn" title="切换规则状态" @click="toggle('route', item.ruleId, item.status)"><ToggleLeft :size="17" /></button></td></tr></tbody></table></div>
+        <div v-else class="configuration-table-wrap"><table class="data-table configuration-table"><thead><tr><th>适用条件</th><th>目标渠道</th><th>优先级 / 流量权重</th><th>作用范围</th><th>版本</th><th>状态</th><th class="actions">操作</th></tr></thead><tbody><tr v-for="item in routes" :key="item.ruleId"><td><strong>{{ item.productCode }}</strong><small class="table-subtext">{{ item.paymentMethod }} · {{ item.currency }}</small></td><td><strong class="mono">{{ item.channelId }}</strong></td><td><strong>{{ item.priority }} / {{ item.weight }}</strong><small class="table-subtext">同优先级内按比例分流</small></td><td>{{ item.merchantId || "默认商户池" }}<small class="table-subtext">{{ item.country || "全球" }}</small></td><td><span class="mono">v{{ item.releaseVersion }} · {{ item.ruleId }}</span></td><td><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span></td><td class="actions"><button v-if="canEdit('route')" class="icon-btn" title="编辑路由规则" @click="editRoute(item)"><Pencil :size="16" /></button><button v-if="canToggle('route')" class="icon-btn" title="切换规则状态" @click="toggle('route', item.ruleId, item.status)"><ToggleLeft :size="17" /></button></td></tr></tbody></table></div>
         <AppPagination :page="routePage.current" :page-size="routePage.pageSize" :total="routePage.total" @change="(current) => changePage('route', current)" @size-change="(size) => changePageSize('route', size)" />
       </template>
       <template v-else-if="section === 'pricing'">
         <div class="section-heading"><div><span class="eyebrow">PRICING CONTROL</span><h4>费率规则</h4></div><span>{{ pricingPage.total }} 条规则</span></div>
           <div v-if="loading" class="empty">加载中…</div>
           <div v-else-if="!pricing.length" class="empty">暂无费率规则</div>
-          <div v-else class="configuration-table-wrap"><table class="data-table configuration-table"><thead><tr><th>适用范围</th><th>费率结构</th><th>交易金额限制</th><th>版本</th><th>状态</th><th class="actions">操作</th></tr></thead><tbody><tr v-for="item in pricing" :key="item.ruleId"><td><strong>{{ item.productCode }}</strong><small class="table-subtext">{{ item.merchantId || "全商户" }} · {{ item.channelId || "全部渠道" }} · {{ item.currency }}</small></td><td><strong>{{ pricingStructure(item) }}</strong><small class="table-subtext">{{ pricingLimits(item) }} · {{ item.feeMode }}</small></td><td>{{ formatAmount(item.minAmount, item.currency) }} - {{ formatAmount(item.maxAmount, item.currency) }}</td><td><span class="mono">v{{ item.releaseVersion }} · {{ item.ruleId }}</span></td><td><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span></td><td class="actions"><button v-if="canOperate" class="icon-btn" title="编辑费率规则" @click="editPricing(item)"><Pencil :size="16" /></button><button v-if="canApprove" class="icon-btn" title="切换规则状态" @click="toggle('pricing', item.ruleId, item.status)"><ToggleLeft :size="17" /></button></td></tr></tbody></table></div>
+          <div v-else class="configuration-table-wrap"><table class="data-table configuration-table"><thead><tr><th>适用范围</th><th>费率结构</th><th>交易金额限制</th><th>版本</th><th>状态</th><th class="actions">操作</th></tr></thead><tbody><tr v-for="item in pricing" :key="item.ruleId"><td><strong>{{ item.productCode }}</strong><small class="table-subtext">{{ item.merchantId || "全商户" }} · {{ item.channelId || "全部渠道" }} · {{ item.currency }}</small></td><td><strong>{{ pricingStructure(item) }}</strong><small class="table-subtext">{{ pricingLimits(item) }} · {{ item.feeMode }}</small></td><td>{{ formatAmount(item.minAmount, item.currency) }} - {{ formatAmount(item.maxAmount, item.currency) }}</td><td><span class="mono">v{{ item.releaseVersion }} · {{ item.ruleId }}</span></td><td><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span></td><td class="actions"><button v-if="canEdit('pricing')" class="icon-btn" title="编辑费率规则" @click="editPricing(item)"><Pencil :size="16" /></button><button v-if="canToggle('pricing')" class="icon-btn" title="切换规则状态" @click="toggle('pricing', item.ruleId, item.status)"><ToggleLeft :size="17" /></button></td></tr></tbody></table></div>
           <AppPagination :page="pricingPage.current" :page-size="pricingPage.pageSize" :total="pricingPage.total" @change="(current) => changePage('pricing', current)" @size-change="(size) => changePageSize('pricing', size)" />
       </template>
       <template v-else>
         <div class="section-heading"><h4>风控策略</h4><span>{{ policyPage.total }} 条策略</span></div>
         <div v-if="loading" class="empty">加载中…</div>
         <div v-else-if="!policies.length" class="empty">暂无风控策略</div>
-        <div v-else class="record-list"><div v-for="item in policies" :key="item.policyId" class="record-row"><div><strong>{{ item.name }} · {{ item.decision }}</strong><small>{{ item.policyId }} · v{{ item.releaseVersion }} · 优先级 {{ item.priority }} · {{ JSON.stringify(item.condition) }}</small></div><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span><button v-if="canOperate" class="icon-btn" title="编辑风控策略" @click="editRisk(item)"><Pencil :size="16" /></button><button v-if="canApprove" class="icon-btn" title="切换策略状态" @click="toggle('risk', item.policyId, item.status)"><ToggleLeft :size="17" /></button></div></div>
+        <div v-else class="record-list"><div v-for="item in policies" :key="item.policyId" class="record-row"><div><strong>{{ item.name }} · {{ item.decision }}</strong><small>{{ item.policyId }} · v{{ item.releaseVersion }} · 优先级 {{ item.priority }} · {{ JSON.stringify(item.condition) }}</small></div><span class="status-badge" :class="'st-' + item.status.toLowerCase()">{{ item.status }}</span><button v-if="canEdit('risk')" class="icon-btn" title="编辑风控策略" @click="editRisk(item)"><Pencil :size="16" /></button><button v-if="canToggle('risk')" class="icon-btn" title="切换策略状态" @click="toggle('risk', item.policyId, item.status)"><ToggleLeft :size="17" /></button></div></div>
         <AppPagination :page="policyPage.current" :page-size="policyPage.pageSize" :total="policyPage.total" @change="(current) => changePage('policy', current)" @size-change="(size) => changePageSize('policy', size)" />
       </template>
     </section>
