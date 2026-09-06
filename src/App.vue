@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, defineAsyncComponent, onMounted, ref, watch } from "vue";
 import {
   Activity,
   Check,
@@ -32,27 +32,28 @@ import { getActiveCurrencies, type Currency } from "./modules/master-data/api";
 import { getProducts, type Product } from "./modules/product/api";
 import { getRoles, getUsers, type AdminUser } from "./modules/user/api";
 import { getPermissionCatalog, getRolePermissions, type AdminRole, type PermissionCatalog } from "./modules/permission/api";
-import { cancelOrder, createOrder, getOrder, getOrderHealth, getOrderPage, getOrderStatistics, resendOrderNotification, type CreateOrderRequest, type Order, type OrderPage } from "./modules/order/api";
+import { cancelOrder, createOrder, createPaymentAttempt, getOrder, getOrderHealth, getOrderPage, getOrderStatistics, resendOrderNotification, type CreateOrderRequest, type Order, type OrderPage } from "./modules/order/api";
 import { getChannelHealth, getOverview, getSnapshot, type DashboardOverview } from "./modules/dashboard/api";
 import { authState, hasPermission, signOut } from "./auth";
 import { changePassword } from "./modules/auth/api";
 import { preferences, setLocale, setTheme, type AppLocale, type AppTheme } from "./preferences";
-import MerchantDetailView from "./modules/merchant/MerchantDetailView.vue";
-import MerchantManagementView from "./modules/merchant/MerchantManagementView.vue";
-import MerchantProductManagementView from "./modules/merchant/MerchantProductManagementView.vue";
-import UserManagementView from "./modules/user/UserManagementView.vue";
-import ProductManagementView from "./modules/product/ProductManagementView.vue";
-import PermissionManagementView from "./modules/permission/PermissionManagementView.vue";
-import RefundView from "./modules/refund/RefundView.vue";
-import OperationsView from "./modules/operations/OperationsView.vue";
-import ConfigurationCenterView from "./modules/configuration/ConfigurationCenterView.vue";
-import ReleaseManagementView from "./modules/configuration/ReleaseManagementView.vue";
-import MenuManagementView from "./modules/menu/MenuManagementView.vue";
-import RoutingRuleManagementView from "./modules/routing/RoutingRuleManagementView.vue";
-import PricingRuleManagementView from "./modules/pricing/PricingRuleManagementView.vue";
-import MasterDataView from "./modules/master-data/MasterDataView.vue";
-import RiskWorkspaceView from "./modules/risk/RiskWorkspaceView.vue";
 import AppDrawer from "./components/AppDrawer.vue";
+
+const MerchantDetailView = defineAsyncComponent(() => import("./modules/merchant/MerchantDetailView.vue"));
+const MerchantManagementView = defineAsyncComponent(() => import("./modules/merchant/MerchantManagementView.vue"));
+const MerchantProductManagementView = defineAsyncComponent(() => import("./modules/merchant/MerchantProductManagementView.vue"));
+const UserManagementView = defineAsyncComponent(() => import("./modules/user/UserManagementView.vue"));
+const ProductManagementView = defineAsyncComponent(() => import("./modules/product/ProductManagementView.vue"));
+const PermissionManagementView = defineAsyncComponent(() => import("./modules/permission/PermissionManagementView.vue"));
+const RefundView = defineAsyncComponent(() => import("./modules/refund/RefundView.vue"));
+const OperationsView = defineAsyncComponent(() => import("./modules/operations/OperationsView.vue"));
+const ConfigurationCenterView = defineAsyncComponent(() => import("./modules/configuration/ConfigurationCenterView.vue"));
+const ReleaseManagementView = defineAsyncComponent(() => import("./modules/configuration/ReleaseManagementView.vue"));
+const MenuManagementView = defineAsyncComponent(() => import("./modules/menu/MenuManagementView.vue"));
+const RoutingRuleManagementView = defineAsyncComponent(() => import("./modules/routing/RoutingRuleManagementView.vue"));
+const PricingRuleManagementView = defineAsyncComponent(() => import("./modules/pricing/PricingRuleManagementView.vue"));
+const MasterDataView = defineAsyncComponent(() => import("./modules/master-data/MasterDataView.vue"));
+const RiskWorkspaceView = defineAsyncComponent(() => import("./modules/risk/RiskWorkspaceView.vue"));
 
 const active = ref<string | null>(null);
 const busy = ref(false);
@@ -337,6 +338,23 @@ const notificationDisabledReason = computed(() => {
   if (!selectedOrder.value.notifyUrl) return "该订单未配置异步通知地址";
   return "";
 });
+const supportsRefund = (order: Order) => {
+  if (!order.pricingSnapshot) return false;
+  try {
+    const pricing = JSON.parse(order.pricingSnapshot) as { supportsRefund?: unknown };
+    return pricing.supportsRefund === true;
+  } catch {
+    return false;
+  }
+};
+const canRefundSelectedOrder = computed(
+  () =>
+    !!selectedOrder.value &&
+    selectedOrder.value.orderType === "PAYIN" &&
+    selectedOrder.value.status === "SUCCESS" &&
+    supportsRefund(selectedOrder.value) &&
+    hasPermission("order:manage"),
+);
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 watch(notice, (message) => {
   if (noticeTimer) clearTimeout(noticeTimer);
@@ -553,6 +571,17 @@ const createNewOrder = async () => {
     queryId.value = result.orderId;
     orderDrawer.value = "detail";
   }
+};
+const startPayment = async () => {
+  if (!selectedOrder.value) return;
+  const orderId = selectedOrder.value.orderId;
+  const order = await run(async () => {
+    await createPaymentAttempt(orderId);
+    return getOrder(orderId);
+  }, "支付已发起");
+  if (!order) return;
+  selectedOrder.value = order;
+  await loadOrders(orderPage.value.page);
 };
 const openCreateOrder = () => {
   orderForm.value = {
@@ -958,20 +987,21 @@ onMounted(async () => {
               </section>
               <section class="drawer-section order-detail-section">
                 <h4>渠道处理结果</h4>
-                <dl class="order-detail-list"><div><dt>渠道</dt><dd>{{ selectedOrder.channelId || "--" }}</dd></div><div><dt>渠道订单号</dt><dd class="mono breakable">{{ selectedOrder.channelOrderId || "--" }}</dd></div><div><dt>渠道状态</dt><dd>{{ selectedOrder.channelStatus || "--" }}</dd></div></dl>
+                <dl class="order-detail-list"><div><dt>渠道</dt><dd>{{ selectedOrder.channelId || "--" }}</dd></div><div><dt>渠道订单号</dt><dd class="mono breakable">{{ selectedOrder.channelOrderId || "--" }}</dd></div><div><dt>渠道状态</dt><dd>{{ selectedOrder.channelStatus || "--" }}</dd></div><div><dt>支付链接</dt><dd v-if="selectedOrder.paymentUrl"><a :href="selectedOrder.paymentUrl" target="_blank" rel="noopener noreferrer">打开支付页面</a></dd><dd v-else>--</dd></div><div><dt>二维码内容</dt><dd class="mono breakable">{{ selectedOrder.qrCode || "--" }}</dd></div></dl>
                 <pre class="snapshot-preview">{{ selectedOrder.channelResponseSnapshot || "暂未收到渠道返回" }}</pre>
               </section>
               <div class="drawer-section">
                 <h4>订单处置</h4>
                 <div class="button-row drawer-actions">
                   <button class="outline-btn" :disabled="busy" title="重新读取订单最新状态" @click="refreshOrderStatus"><RefreshCw :size="16" />刷新状态</button>
+                  <button v-if="selectedOrder.status === 'CREATED' && hasPermission('order:manage')" class="primary-btn" :disabled="busy" title="创建渠道支付尝试并获取支付链接" @click="startPayment"><WalletCards :size="16" />发起支付</button>
                   <button class="danger-btn" :disabled="busy || !!cancelOrderDisabledReason" :title="cancelOrderDisabledReason || '取消未完成订单'" @click="cancelSelectedOrder"><XCircle :size="16" />取消订单</button>
                   <button class="outline-btn" :disabled="busy || !!notificationDisabledReason" :title="notificationDisabledReason || '将成功订单的通知重新加入投递队列'" @click="resendNotification">再次通知商户</button>
                 </div>
                 <p v-if="cancelOrderDisabledReason" class="order-action-hint">取消订单不可用：{{ cancelOrderDisabledReason }}</p>
                 <p v-if="notificationDisabledReason" class="order-action-hint">再次通知不可用：{{ notificationDisabledReason }}</p>
               </div>
-              <RefundView v-if="selectedOrder.orderType === 'PAYIN' && selectedOrder.status === 'SUCCESS'" :order="selectedOrder" @notice="notice = $event" />
+              <RefundView v-if="canRefundSelectedOrder" :order="selectedOrder" @notice="notice = $event" />
             </template>
           </template>
         </AppDrawer>
