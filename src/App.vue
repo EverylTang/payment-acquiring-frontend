@@ -72,7 +72,7 @@ const orderDrawer = ref<"create" | "detail" | null>(null);
 const orderForm = ref<CreateOrderRequest>({
   merchantId: "merchant-demo",
   merchantOrderNo: `web-${Date.now()}`,
-  productCode: "CARD-US-USD",
+  appId: "",
   payModel: "CARD",
   country: "US",
   currency: "USD",
@@ -122,7 +122,14 @@ const orderSelectableProducts = computed(() => {
       .filter((binding) => binding.status === "ACTIVE")
       .map((binding) => binding.productCode),
   );
-  return orderCreateProducts.value.filter((product) => boundCodes.has(product.productCode));
+  return orderCreateMerchantProducts.value
+    .filter((binding) => binding.status === "ACTIVE" && boundCodes.has(binding.productCode))
+    .map((binding) => ({
+      ...orderCreateProducts.value.find((product) => product.productCode === binding.productCode),
+      appId: binding.appId,
+      productCode: binding.productCode,
+      productName: binding.productName,
+    })) as Array<Product & { appId: string; productName: string }>;
 });
 const orderPaymentMethods = computed(() =>
   [...new Set(
@@ -571,7 +578,7 @@ const loadOrderCreateCurrencies = async (countryCode: string, preferredCurrency 
 };
 const selectOrderProduct = async () => {
   const product = orderSelectableProducts.value.find(
-    (item) => item.productCode === orderForm.value.productCode,
+    (item) => String(item.appId) === orderForm.value.appId,
   );
   orderForm.value.payModel = "";
   orderCreateCapabilities.value = [];
@@ -594,11 +601,11 @@ const selectOrderMerchant = async () => {
     ? (await getMerchantProducts({ merchantId: orderForm.value.merchantId, status: "ACTIVE", page: 1, pageSize: 100 })).items
     : [];
   const currentProductIsBound = orderSelectableProducts.value.some(
-    (product) => product.productCode === orderForm.value.productCode,
+    (product) => String(product.appId) === orderForm.value.appId,
   );
-  orderForm.value.productCode = currentProductIsBound
-    ? orderForm.value.productCode
-    : orderSelectableProducts.value[0]?.productCode || "";
+  orderForm.value.appId = currentProductIsBound
+    ? orderForm.value.appId
+    : orderSelectableProducts.value[0] ? String(orderSelectableProducts.value[0].appId) : "";
   await selectOrderProduct();
 };
 const selectOrderCountry = async () => {
@@ -636,7 +643,7 @@ const createNewOrder = async () => {
   if (
     !orderForm.value.merchantId.trim() ||
     !orderForm.value.merchantOrderNo.trim() ||
-    !orderForm.value.productCode.trim() ||
+    !orderForm.value.appId.trim() ||
     !orderForm.value.payModel.trim() ||
     !orderForm.value.country.trim() ||
     !orderForm.value.currency.trim() ||
@@ -656,7 +663,7 @@ const createNewOrder = async () => {
     ...orderForm.value,
     merchantId: orderForm.value.merchantId.trim(),
     merchantOrderNo: orderForm.value.merchantOrderNo.trim(),
-    productCode: orderForm.value.productCode.trim().toUpperCase(),
+    appId: orderForm.value.appId.trim(),
     payModel: orderForm.value.payModel.trim().toUpperCase(),
     country: orderForm.value.country.trim().toUpperCase(),
     currency: orderForm.value.currency.trim().toUpperCase(),
@@ -683,7 +690,7 @@ const openCreateOrder = async () => {
   orderForm.value = {
     merchantId: "",
     merchantOrderNo: `web-${Date.now()}`,
-    productCode: "",
+    appId: "",
     payModel: "",
     country: "",
     currency: "",
@@ -1011,9 +1018,9 @@ onMounted(async () => {
               <div class="drawer-form-grid">
                 <label class="form-field"><span>商户 <b>*</b></span><select v-model="orderForm.merchantId" :disabled="orderCreateLoading" @change="selectOrderMerchant"><option value="">选择商户</option><option v-for="merchant in orderCreateMerchants" :key="merchant.merchantId" :value="merchant.merchantId">{{ merchant.name }} · {{ merchant.merchantId }}</option></select></label>
                 <label class="form-field"><span>商户订单号 <b>*</b></span><input v-model="orderForm.merchantOrderNo" maxlength="128" placeholder="商户侧唯一订单号" /></label>
-                <label class="form-field"><span>产品 <b>*</b></span><select v-model="orderForm.productCode" :disabled="orderCreateLoading || !orderForm.merchantId || !orderSelectableProducts.length" @change="selectOrderProduct"><option value="">选择产品</option><option v-for="product in orderSelectableProducts" :key="product.productCode" :value="product.productCode">{{ product.name }} · {{ product.productCode }}</option></select></label>
-                <label class="form-field"><span>支付方式 <b>*</b></span><select v-model="orderForm.payModel" :disabled="orderCreateLoading || !orderForm.productCode || !orderPaymentMethods.length"><option value="">选择支付方式</option><option v-for="paymentMethod in orderPaymentMethods" :key="paymentMethod" :value="paymentMethod">{{ paymentMethod }}</option></select></label>
-                <label class="form-field"><span>国家 / 地区 <b>*</b></span><select v-model="orderForm.country" :disabled="orderCreateLoading || !orderForm.productCode" @change="selectOrderCountry"><option value="">选择国家 / 地区</option><option v-for="country in orderCreateCountries" :key="country.code" :value="country.code">{{ country.name }} · {{ country.code }}</option></select></label>
+                <label class="form-field"><span>产品 <b>*</b></span><select v-model="orderForm.appId" :disabled="orderCreateLoading || !orderForm.merchantId || !orderSelectableProducts.length" @change="selectOrderProduct"><option value="">选择产品</option><option v-for="product in orderSelectableProducts" :key="product.appId" :value="String(product.appId)">{{ product.productName }} · App {{ product.appId }}</option></select></label>
+                <label class="form-field"><span>支付方式 <b>*</b></span><select v-model="orderForm.payModel" :disabled="orderCreateLoading || !orderForm.appId || !orderPaymentMethods.length"><option value="">选择支付方式</option><option v-for="paymentMethod in orderPaymentMethods" :key="paymentMethod" :value="paymentMethod">{{ paymentMethod }}</option></select></label>
+                <label class="form-field"><span>国家 / 地区 <b>*</b></span><select v-model="orderForm.country" :disabled="orderCreateLoading || !orderForm.appId" @change="selectOrderCountry"><option value="">选择国家 / 地区</option><option v-for="country in orderCreateCountries" :key="country.code" :value="country.code">{{ country.name }} · {{ country.code }}</option></select></label>
                 <label class="form-field"><span>币种 <b>*</b></span><select v-model="orderForm.currency" :disabled="orderCreateLoading || !orderForm.country || !orderCreateCurrencies.length"><option value="">选择币种</option><option v-for="currency in orderCreateCurrencies" :key="currency.code" :value="currency.code">{{ currency.code }} · {{ currency.name }}</option></select></label>
               </div>
             </section>

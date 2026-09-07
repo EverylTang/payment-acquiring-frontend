@@ -154,18 +154,19 @@ onMounted(() => { void Promise.all([load(), loadReferenceOptions()]); });
     <div v-if="loading" class="empty"><LoaderCircle class="spin" :size="22" />加载中…</div>
     <div v-else class="table-wrap management-table-wrap">
       <table class="data-table merchant-product-table">
-        <colgroup><col class="merchant-product-merchant-column" /><col class="merchant-product-product-column" /><col class="merchant-product-method-column" /><col class="merchant-product-status-column" /><col class="merchant-product-time-column" /><col class="management-actions-column" /></colgroup>
-        <thead><tr><th>商户</th><th>产品</th><th>可用支付方式</th><th>状态</th><th>绑定 / 更新时间</th><th class="actions">操作</th></tr></thead>
+        <colgroup><col class="merchant-product-merchant-column" /><col class="merchant-product-app-column" /><col class="merchant-product-product-column" /><col class="merchant-product-method-column" /><col class="merchant-product-status-column" /><col class="merchant-product-time-column" /><col class="management-actions-column" /></colgroup>
+        <thead><tr><th>商户</th><th>App ID</th><th>产品</th><th>可用支付方式</th><th>状态</th><th>绑定 / 更新时间</th><th class="actions">操作</th></tr></thead>
         <tbody>
           <tr v-for="item in products" :key="item.bindingId">
             <td><strong>{{ item.merchantName }}</strong><small class="mono">{{ item.merchantId }}</small></td>
+            <td><strong class="mono app-id-value">{{ item.appId }}</strong><small>公开下单标识</small></td>
             <td><strong>{{ item.productName }}</strong><small class="mono">{{ item.productCode }}</small></td>
             <td>{{ item.supportedPaymentMethods || "未配置" }}</td>
             <td><span class="status-badge" :class="`st-${item.status.toLowerCase()}`">{{ item.status === "ACTIVE" ? "已启用" : "已停用" }}</span></td>
             <td><small>{{ formatTime(item.createdAt) }}</small><small>更新 {{ formatTime(item.updatedAt) }}</small></td>
             <td class="actions"><div class="management-row-actions"><button v-if="hasPermission('merchant-product:update')" class="outline-btn" type="button" title="编辑商户产品绑定" @click="openEdit(item)"><Pencil :size="16" />编辑</button><button v-if="hasPermission('merchant-product:status')" class="outline-btn" type="button" title="切换绑定状态" @click="toggleStatus(item)"><ToggleLeft :size="16" />{{ item.status === "ACTIVE" ? "停用" : "启用" }}</button></div></td>
           </tr>
-          <tr v-if="!products.length"><td colspan="6" class="empty">暂无符合筛选条件的商户产品绑定</td></tr>
+          <tr v-if="!products.length"><td colspan="7" class="empty">暂无符合筛选条件的商户产品绑定</td></tr>
         </tbody>
       </table>
     </div>
