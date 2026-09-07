@@ -3,7 +3,6 @@ import { computed, onMounted, ref } from "vue";
 import { Eye, RefreshCw, RotateCcw } from "lucide-vue-next";
 import {
   getDeadOutbox,
-  getExpiredPaymentSuccesses,
   getFailedPaymentEvents,
   getOperationAudits,
   getOutboxEvent,
@@ -15,9 +14,7 @@ import {
   reconcileBill,
   redriveOutbox,
   replayPaymentEvent,
-  resolveExpiredPaymentSuccess,
   resolveReconciliationDifference,
-  type ExpiredPaymentSuccess,
   type OutboxEvent,
   type OperationAudit,
   type PaymentEvent,
@@ -34,7 +31,6 @@ const outbox = ref<OutboxEvent[]>([]);
 const differences = ref<ReconciliationDifference[]>([]);
 const audits = ref<OperationAudit[]>([]);
 const failedPaymentEvents = ref<PaymentEvent[]>([]);
-const expiredPaymentSuccesses = ref<ExpiredPaymentSuccess[]>([]);
 const settlementBills = ref<SettlementBill[]>([]);
 const billForm = ref({ billId: "", channelId: "", billDate: new Date().toISOString().slice(0, 10), currency: "USD", totalAmount: 0, totalCount: 0, lines: "[]" });
 const reconcileBillId = ref("");
@@ -44,36 +40,30 @@ const outboxPage = ref(1);
 const differencePage = ref(1);
 const paymentEventPage = ref(1);
 const paymentEventPageSize = ref(20);
-const expiredSuccessPage = ref(1);
-const expiredSuccessPageSize = ref(20);
 const auditPage = ref({ current: 1, pageSize: 10, total: 0 });
 const settlementBillPage = ref({ current: 1, pageSize: 10, total: 0 });
 const visibleOutbox = computed(() => outbox.value.slice((outboxPage.value - 1) * localPageSize.value, outboxPage.value * localPageSize.value));
 const visibleDifferences = computed(() => differences.value.slice((differencePage.value - 1) * localPageSize.value, differencePage.value * localPageSize.value));
 const visiblePaymentEvents = computed(() => failedPaymentEvents.value.slice((paymentEventPage.value - 1) * paymentEventPageSize.value, paymentEventPage.value * paymentEventPageSize.value));
-const visibleExpiredSuccesses = computed(() => expiredPaymentSuccesses.value.slice((expiredSuccessPage.value - 1) * expiredSuccessPageSize.value, expiredSuccessPage.value * expiredSuccessPageSize.value));
 const selectedOutboxDetail = ref<Record<string, unknown> | null>(null);
 const selectedSettlementBill = ref<SettlementBillDetail | null>(null);
 const selectedPaymentEvent = ref<PaymentEvent | null>(null);
 const replayingPaymentEvent = ref<PaymentEvent | null>(null);
-const resolvingExpired = ref<ExpiredPaymentSuccess | null>(null);
 const text = (value: unknown) => value == null ? "" : String(value);
 const lineValue = (line: Record<string, unknown>, key: string) => line[key] ?? line[key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)];
 const changeOutboxPageSize = (pageSize: number) => { localPageSize.value = pageSize; outboxPage.value = 1; };
 const changeDifferencePageSize = (pageSize: number) => { localPageSize.value = pageSize; differencePage.value = 1; };
 const changePaymentEventPageSize = (pageSize: number) => { paymentEventPageSize.value = pageSize; paymentEventPage.value = 1; };
-const changeExpiredSuccessPageSize = (pageSize: number) => { expiredSuccessPageSize.value = pageSize; expiredSuccessPage.value = 1; };
 const load = async (currentAuditPage = auditPage.value.current, currentSettlementBillPage = settlementBillPage.value.current) => {
   loading.value = true;
   try {
-    const [o, d, a, p, e, b] = await Promise.all([
+    const [o, d, a, p, b] = await Promise.all([
       hasPermission("outbox:list") ? getDeadOutbox() : Promise.resolve({ items: [] as OutboxEvent[] }),
       hasPermission("reconciliation:difference:list") ? getReconciliationDifferences() : Promise.resolve({ items: [] as ReconciliationDifference[] }),
       hasPermission("audit:list")
         ? getOperationAudits({ page: currentAuditPage, pageSize: auditPage.value.pageSize })
         : Promise.resolve({ items: [] as OperationAudit[], page: currentAuditPage, pageSize: auditPage.value.pageSize, total: 0 }),
       hasPermission("payment-event:list") ? getFailedPaymentEvents() : Promise.resolve({ items: [] as PaymentEvent[] }),
-      hasPermission("reconciliation:difference:list") ? getExpiredPaymentSuccesses() : Promise.resolve({ items: [] as ExpiredPaymentSuccess[] }),
       hasPermission("reconciliation:bill:list")
         ? getSettlementBills({ page: currentSettlementBillPage, pageSize: settlementBillPage.value.pageSize })
         : Promise.resolve({ items: [] as SettlementBill[], page: currentSettlementBillPage, pageSize: settlementBillPage.value.pageSize, total: 0 }),
@@ -82,14 +72,12 @@ const load = async (currentAuditPage = auditPage.value.current, currentSettlemen
     differences.value = d.items;
     audits.value = a.items;
     failedPaymentEvents.value = p.items;
-    expiredPaymentSuccesses.value = e.items;
     settlementBills.value = b.items;
     auditPage.value = { current: a.page, pageSize: a.pageSize, total: a.total };
     settlementBillPage.value = { current: b.page, pageSize: b.pageSize, total: b.total };
     outboxPage.value = 1;
     differencePage.value = 1;
     paymentEventPage.value = 1;
-    expiredSuccessPage.value = 1;
   } catch (e) {
     emit("notice", e instanceof Error ? e.message : "运营数据加载失败");
   } finally {
@@ -137,20 +125,6 @@ const doReplayPaymentEvent = async (reason: string) => {
     await load();
   } catch (error) {
     emit("notice", error instanceof Error ? error.message : "支付事件重放失败");
-  }
-};
-const doResolveExpiredSuccess = async (resolution: string) => {
-  const item = resolvingExpired.value;
-  resolvingExpired.value = null;
-  if (!item || !resolution) return;
-  const id = text(item.exceptionId);
-  if (!id) return;
-  try {
-    await resolveExpiredPaymentSuccess(id, resolution);
-    emit("notice", "过期支付成功异常已处理");
-    await load();
-  } catch (error) {
-    emit("notice", error instanceof Error ? error.message : "过期支付成功异常处理失败");
   }
 };
 const redrive = async (event: OutboxEvent) => {
@@ -289,21 +263,6 @@ onMounted(load);
       </div>
       <AppPagination :page="differencePage" :page-size="localPageSize" :total="differences.length" noun="条差异" @change="(page) => differencePage = page" @size-change="changeDifferencePageSize" />
     </template>
-    <template v-if="hasPermission('reconciliation:difference:list')">
-      <h4>过期支付成功异常</h4>
-      <div v-if="!expiredPaymentSuccesses.length" class="empty">暂无待处理异常</div>
-      <div v-else class="record-list">
-        <div v-for="(item, index) in visibleExpiredSuccesses" :key="text(item.exceptionId) || index" class="record-row">
-          <div>
-            <strong>{{ text(item.orderId) }} · {{ text(item.attemptId) }}</strong
-            ><small>{{ text(item.exceptionId) }} · {{ text(item.channelId) }} · {{ text(item.currency) }} {{ text(item.amount) }}</small>
-          </div>
-          <span class="status-badge" :class="'st-' + text(item.status).toLowerCase()">{{ text(item.status) }}</span
-          ><button v-if="hasPermission('reconciliation:difference:resolve')" class="outline-btn" @click="resolvingExpired = item">处理</button>
-        </div>
-      </div>
-      <AppPagination :page="expiredSuccessPage" :page-size="expiredSuccessPageSize" :total="expiredPaymentSuccesses.length" noun="条过期支付成功异常" @change="(page) => expiredSuccessPage = page" @size-change="changeExpiredSuccessPageSize" />
-    </template>
     <template v-if="hasPermission('audit:list')">
       <h4>后台操作审计</h4>
       <div v-if="!audits.length" class="empty">暂无操作审计记录</div>
@@ -336,16 +295,6 @@ onMounted(load);
       input-value="运营后台人工重放"
       @confirm="doReplayPaymentEvent"
       @cancel="replayingPaymentEvent = null"
-    />
-    <AppDialog
-      v-if="resolvingExpired"
-      title="处理过期支付成功异常"
-      :message="`订单 ${text(resolvingExpired.orderId)} · 异常 ${text(resolvingExpired.exceptionId)}`"
-      confirm-text="确认处理"
-      input-placeholder="请输入处理结论"
-      input-value="已核实并处理"
-      @confirm="doResolveExpiredSuccess"
-      @cancel="resolvingExpired = null"
     />
     <AppDrawer v-if="selectedOutboxDetail" title="Outbox 详情" description="OUTBOX EVENT" @close="selectedOutboxDetail = null">
       <pre class="snapshot-preview">{{ JSON.stringify(selectedOutboxDetail, null, 2) }}</pre>

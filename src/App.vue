@@ -1072,11 +1072,6 @@ onMounted(async () => {
                 <h4>商户请求参数</h4>
                 <pre class="snapshot-preview">{{ selectedOrder.merchantRequestSnapshot || "历史订单未记录" }}</pre>
               </section>
-              <section class="drawer-section order-detail-section">
-                <h4>渠道处理结果</h4>
-                <dl class="order-detail-list"><div><dt>渠道</dt><dd>{{ selectedOrder.channelId || "--" }}</dd></div><div><dt>渠道订单号</dt><dd class="mono breakable">{{ selectedOrder.channelOrderId || "--" }}</dd></div><div><dt>渠道状态</dt><dd>{{ selectedOrder.channelStatus || "--" }}</dd></div><div><dt>支付链接</dt><dd v-if="selectedOrder.paymentUrl"><a :href="selectedOrder.paymentUrl" target="_blank" rel="noopener noreferrer">打开支付页面</a></dd><dd v-else>--</dd></div><div><dt>二维码内容</dt><dd class="mono breakable">{{ selectedOrder.qrCode || "--" }}</dd></div></dl>
-                <pre class="snapshot-preview">{{ selectedOrder.channelResponseSnapshot || "暂未收到渠道返回" }}</pre>
-              </section>
               <div class="drawer-section">
                 <h4>订单处置</h4>
                 <div class="button-row drawer-actions">

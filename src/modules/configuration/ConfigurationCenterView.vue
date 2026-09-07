@@ -498,7 +498,7 @@ onMounted(load);
             </template>
           </div>
           <section class="channel-parameter-section"><div class="drawer-section-heading"><div><h4>接入参数 JSON</h4><small>完全自定义的渠道运行参数，不预设字段。仅填写不属于渠道凭据的参数。</small></div></div><ElInput v-model="channelConfigurationJson" type="textarea" :rows="8" placeholder='{"customParameter":"value"}' /></section>
-          <section class="channel-parameter-section"><div class="drawer-section-heading"><div><h4>渠道凭证 JSON</h4><small>商户号、应用标识、加签验签密钥及其他敏感值统一在此配置。凭据不会写入操作审计或支付尝试快照。</small></div></div><ElInput v-model="channelCredentialsJson" type="textarea" :rows="8" placeholder='{"merchantId":"...","requestSigningKey":"...","callbackVerifyKey":"..."}' /></section>
+          <section class="channel-parameter-section"><div class="drawer-section-heading"><div><h4>渠道凭证 JSON</h4><small>商户号、应用标识、加签验签密钥及其他敏感值统一在此配置。</small></div></div><ElInput v-model="channelCredentialsJson" type="textarea" :rows="8" placeholder='{"merchantId":"...","requestSigningKey":"...","callbackVerifyKey":"..."}' /></section>
           <button class="primary-btn drawer-submit" type="button" :disabled="saving || !channelForm.channelId || !channelForm.name || !channelForm.provider || !channelForm.requestUrl || !channelForm.signatureProfile" @click="createConfigItem"><Save :size="16" />{{ saving ? '保存中' : editingChannel ? '保存渠道' : '创建渠道' }}</button>
         </ElForm>
         <ElForm v-else-if="section === 'pricing'" :model="pricingForm" label-position="top" class="configuration-element-form">
