@@ -108,7 +108,7 @@ onMounted(load);
       <div><span class="eyebrow">RELEASE CONTROL</span><h3>版本发布</h3></div>
       <div class="button-row">
         <button v-if="canCreate" class="primary-btn" type="button" @click="drawer = 'create'"><Plus :size="16" />创建草稿</button>
-        <button class="icon-btn" type="button" title="刷新" :disabled="loading" @click="load()"><RefreshCw :class="{ spin: loading }" :size="16" /></button>
+        <button class="outline-btn action-btn" type="button" title="刷新" :disabled="loading" @click="load()"><RefreshCw :class="{ spin: loading }" :size="16" />刷新</button>
       </div>
     </div>
 
@@ -132,11 +132,11 @@ onMounted(load);
             <td>{{ item.createdBy }}<small class="table-subtext table-date">{{ item.createdAt }}</small></td>
             <td>{{ item.approvedBy || "--" }}<small class="table-subtext table-date">{{ item.publishedAt || "--" }}</small></td>
             <td class="actions">
-              <button v-if="canDiff" class="icon-btn" type="button" title="查看版本差异" @click="showDiff(item)"><FileDiff :size="16" /></button>
-              <button v-if="canSubmit && item.status === 'DRAFT'" class="icon-btn" type="button" title="提交审核" :disabled="saving" @click="pending = { release: item, action: 'submit' }"><Send :size="16" /></button>
-              <button v-if="canApprove && item.status === 'IN_REVIEW'" class="icon-btn" type="button" title="审核通过" :disabled="saving" @click="pending = { release: item, action: 'approve' }"><Check :size="16" /></button>
-              <button v-if="canPublish && item.status === 'APPROVED'" class="icon-btn" type="button" title="正式发布" :disabled="saving" @click="pending = { release: item, action: 'publish' }"><Send :size="16" /></button>
-              <button v-if="canRollback && item.status === 'PUBLISHED'" class="icon-btn" type="button" title="回滚生成草稿" :disabled="saving" @click="pending = { release: item, action: 'rollback' }"><RotateCcw :size="16" /></button>
+              <button v-if="canDiff" class="outline-btn action-btn" type="button" title="查看版本差异" @click="showDiff(item)"><FileDiff :size="15" />差异</button>
+              <button v-if="canSubmit && item.status === 'DRAFT'" class="outline-btn action-btn" type="button" title="提交审核" :disabled="saving" @click="pending = { release: item, action: 'submit' }"><Send :size="15" />提交审核</button>
+              <button v-if="canApprove && item.status === 'IN_REVIEW'" class="outline-btn action-btn" type="button" title="审核通过" :disabled="saving" @click="pending = { release: item, action: 'approve' }"><Check :size="15" />审核通过</button>
+              <button v-if="canPublish && item.status === 'APPROVED'" class="outline-btn action-btn" type="button" title="正式发布" :disabled="saving" @click="pending = { release: item, action: 'publish' }"><Send :size="15" />发布</button>
+              <button v-if="canRollback && item.status === 'PUBLISHED'" class="outline-btn action-btn" type="button" title="回滚生成草稿" :disabled="saving" @click="pending = { release: item, action: 'rollback' }"><RotateCcw :size="15" />回滚</button>
             </td>
           </tr>
         </tbody>

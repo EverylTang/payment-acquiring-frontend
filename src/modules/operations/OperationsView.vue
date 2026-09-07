@@ -224,7 +224,7 @@ onMounted(load);
             ><small>{{ event.eventId }} · {{ event.lastError || "" }}</small>
           </div>
           <span class="status-badge" :class="'st-' + event.status.toLowerCase()">{{ event.status }}</span
-          ><button v-if="hasPermission('outbox:detail')" class="icon-btn" title="查看详情" @click="openOutboxDetail(event.eventId)"><Eye :size="16" /></button
+          ><button v-if="hasPermission('outbox:detail')" class="outline-btn action-btn" title="查看详情" @click="openOutboxDetail(event.eventId)"><Eye :size="15" />查看</button
           ><button v-if="hasPermission('outbox:redrive')" class="outline-btn" @click="redrive(event)">重新投递</button>
         </div>
       </div>
@@ -240,7 +240,7 @@ onMounted(load);
             ><small>{{ text(event.eventId) }} · {{ text(event.orderId) }} · {{ text(event.lastError) || text(event.failureType) || "" }}</small>
           </div>
           <span class="status-badge" :class="'st-' + text(event.status).toLowerCase()">{{ text(event.status) }}</span
-          ><button v-if="hasPermission('payment-event:detail')" class="icon-btn" title="查看详情" @click="openPaymentEvent(event)"><Eye :size="16" /></button
+          ><button v-if="hasPermission('payment-event:detail')" class="outline-btn action-btn" title="查看详情" @click="openPaymentEvent(event)"><Eye :size="15" />查看</button
           ><button v-if="hasPermission('payment-event:replay')" class="outline-btn" @click="replayingPaymentEvent = event"><RotateCcw :size="16" />重放</button>
         </div>
       </div>
@@ -265,7 +265,7 @@ onMounted(load);
           </div>
           <b>{{ bill.totalAmount }} / {{ bill.totalCount }}</b>
           <span class="status-badge" :class="'st-' + bill.status.toLowerCase()">{{ bill.status }}</span>
-          <button v-if="hasPermission('reconciliation:bill:detail')" class="icon-btn" title="查看账单详情" @click="openSettlementBill(bill.billId)"><Eye :size="16" /></button>
+          <button v-if="hasPermission('reconciliation:bill:detail')" class="outline-btn action-btn" title="查看账单详情" @click="openSettlementBill(bill.billId)"><Eye :size="15" />查看</button>
         </div>
       </div>
       <AppPagination :page="settlementBillPage.current" :page-size="settlementBillPage.pageSize" :total="settlementBillPage.total" noun="条结算账单" @change="changeSettlementBillPage" @size-change="changeSettlementBillPageSize" />

@@ -1563,6 +1563,10 @@ nav button.active::before { background: var(--accent); }
 .primary-btn:hover:not(:disabled) { border-color: #66b1ff; background: #66b1ff; box-shadow: none; transform: none; }
 .icon-btn { width: 32px; height: 32px; border: 1px solid #dcdfe6; border-radius: 4px; color: #606266; background: #ffffff; }
 .icon-btn:hover:not(:disabled) { border-color: #409eff; color: #409eff; background: #ecf5ff; }
+.action-btn { width: auto; min-width: 66px; min-height: 32px; height: auto; padding: 0 10px; gap: 5px; white-space: nowrap; }
+.data-table .actions .action-btn { margin-left: 6px; }
+.settlement-row-actions .action-btn { flex: 0 0 auto; }
+.permission-record-row .button-row { flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .data-table { border: 1px solid #ebeef5; border-radius: 4px; overflow: hidden; }
 .data-table th { height: 44px; padding: 0 14px; color: #606266; background: #f5f7fa; font-size: 13px; font-weight: 500; letter-spacing: 0; }
 .data-table td { height: 52px; padding: 10px 14px; border-bottom-color: #ebeef5; color: #606266; }
@@ -1607,10 +1611,11 @@ nav button.active::before { background: var(--accent); }
 .drawer-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 .drawer-actions .primary-btn,
 .drawer-actions .outline-btn { min-width: 88px; }
-.order-list .actions { width: 64px; text-align: center; }
+.order-list .actions { width: 96px; text-align: center; }
+.order-list .actions .action-btn { margin: 0; }
 .order-management-panel > .panel-title { display: none; }
 .order-list-filter { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px 16px; margin-bottom: 16px; padding: 16px; border: 1px solid #ebeef5; border-radius: 4px; background: #f8fafc; }
-.order-filter-fields { display: grid; flex: 1 1 740px; grid-template-columns: repeat(4, minmax(145px, 1fr)); gap: 14px 16px; }
+.order-filter-fields { display: grid; flex: 1 1 740px; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 14px 16px; }
 .order-filter-actions { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; min-height: 42px; }
 .order-filter-actions .toolbar-summary { margin-right: auto; white-space: nowrap; }
 .order-list { margin-top: 0; }

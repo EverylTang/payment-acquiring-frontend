@@ -94,9 +94,10 @@ const orderPage = ref<OrderPage>({
   pageSize: 10,
   total: 0,
 });
-const orderFilters = ref({ merchantId: "", status: "", currency: "", orderType: "" as "" | "PAYIN" | "PAYOUT" });
+const orderFilters = ref({ merchantId: "", merchantOrderNo: "", orderId: "", productCode: "", status: "", currency: "", orderType: "" as "" | "PAYIN" | "PAYOUT", createdFrom: "", createdTo: "", paidFrom: "", paidTo: "" });
 const orderFilterMerchants = ref<Merchant[]>([]);
 const orderFilterCurrencies = ref<Currency[]>([]);
+const orderFilterProducts = ref<Product[]>([]);
 const orderCreateMerchants = ref<Merchant[]>([]);
 const orderCreateProducts = ref<Product[]>([]);
 const orderCreateMerchantProducts = ref<MerchantProduct[]>([]);
@@ -538,14 +539,16 @@ const changeOrderPageSize = (pageSize: number) => {
   void loadOrders(1);
 };
 const loadOrderFilterOptions = async () => {
-  if (orderFilterMerchants.value.length && orderFilterCurrencies.value.length) return;
+  if (orderFilterMerchants.value.length && orderFilterCurrencies.value.length && orderFilterProducts.value.length) return;
   try {
-    const [merchantPage, currencies] = await Promise.all([
+    const [merchantPage, currencies, productPageResult] = await Promise.all([
       getMerchants({ page: 1, pageSize: 100, status: "ACTIVE" }),
       getActiveCurrencies(),
+      getProducts({ page: 1, pageSize: 100, status: "ACTIVE" }),
     ]);
     orderFilterMerchants.value = merchantPage.items;
     orderFilterCurrencies.value = currencies;
+    orderFilterProducts.value = productPageResult.items;
   } catch (error) {
     notice.value = error instanceof Error ? error.message : "订单筛选项加载失败";
   }
@@ -615,7 +618,7 @@ const loadOrderCreateReferences = async () => {
   }
 };
 const resetOrderFilters = async () => {
-  orderFilters.value = { merchantId: "", status: "", currency: "", orderType: "" };
+  orderFilters.value = { merchantId: "", merchantOrderNo: "", orderId: "", productCode: "", status: "", currency: "", orderType: "", createdFrom: "", createdTo: "", paidFrom: "", paidTo: "" };
   await loadOrders(1);
 };
 const findOrder = async () => {
@@ -942,9 +945,16 @@ onMounted(async () => {
         <form class="order-list-filter" @submit.prevent="loadOrders(1)">
           <div class="order-filter-fields">
             <label class="management-form-item"><span>商户</span><select v-model="orderFilters.merchantId"><option value="">全部商户</option><option v-for="merchant in orderFilterMerchants" :key="merchant.merchantId" :value="merchant.merchantId">{{ merchant.name }} · {{ merchant.merchantId }}</option></select></label>
+            <label class="management-form-item"><span>商户订单号</span><input v-model.trim="orderFilters.merchantOrderNo" placeholder="支持模糊匹配" /></label>
+            <label class="management-form-item"><span>订单号</span><input v-model.trim="orderFilters.orderId" placeholder="输入平台订单号" /></label>
+            <label class="management-form-item"><span>支付产品</span><select v-model="orderFilters.productCode"><option value="">全部产品</option><option v-for="product in orderFilterProducts" :key="product.productCode" :value="product.productCode">{{ product.name }} · {{ product.productCode }}</option></select></label>
             <label class="management-form-item"><span>订单类型</span><select v-model="orderFilters.orderType"><option value="">全部类型</option><option value="PAYIN">收单</option><option value="PAYOUT">出款</option></select></label>
             <label class="management-form-item"><span>订单状态</span><select v-model="orderFilters.status"><option value="">全部状态</option><option value="CREATED">已创建</option><option value="PAYING">处理中</option><option value="SUCCESS">成功</option><option value="FAILED">失败</option><option value="UNKNOWN">待确认</option><option value="CANCELED">已取消</option></select></label>
             <label class="management-form-item"><span>交易币种</span><select v-model="orderFilters.currency"><option value="">全部币种</option><option v-for="currency in orderFilterCurrencies" :key="currency.code" :value="currency.code">{{ currency.code }} · {{ currency.name }}</option></select></label>
+            <label class="management-form-item"><span>下单开始时间</span><input v-model="orderFilters.createdFrom" type="datetime-local" /></label>
+            <label class="management-form-item"><span>下单结束时间</span><input v-model="orderFilters.createdTo" type="datetime-local" /></label>
+            <label class="management-form-item"><span>支付开始时间</span><input v-model="orderFilters.paidFrom" type="datetime-local" /></label>
+            <label class="management-form-item"><span>支付结束时间</span><input v-model="orderFilters.paidTo" type="datetime-local" /></label>
           </div>
           <div class="order-filter-actions"><span class="toolbar-summary">共 {{ orderPage.total }} 笔订单</span><button class="outline-btn" type="button" @click="resetOrderFilters">重置</button><button class="primary-btn" type="submit"><Search :size="16" />查询</button><button v-if="hasPermission('order:manage')" class="primary-btn" type="button" @click="openCreateOrder">创建订单</button></div>
         </form>
@@ -967,7 +977,7 @@ onMounted(async () => {
                 <td class="num mono">{{ order.netAmount ?? order.amount }} {{ order.currency }}</td>
                 <td>{{ order.feeBearer === "PAYER" ? "付款方" : "商户" }}</td>
                 <td><span class="status-badge" :class="'st-' + order.status.toLowerCase()">{{ order.status }}</span></td>
-                <td class="actions"><button class="icon-btn" title="查看订单详情" @click.stop="inspectOrder(order)"><Eye :size="16" /></button></td>
+                <td class="actions"><button class="outline-btn action-btn" type="button" title="查看订单详情" @click.stop="inspectOrder(order)"><Eye :size="15" />查看</button></td>
               </tr>
             </tbody>
           </table>
