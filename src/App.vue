@@ -73,7 +73,7 @@ const orderForm = ref<CreateOrderRequest>({
   merchantId: "merchant-demo",
   merchantOrderNo: `web-${Date.now()}`,
   productCode: "CARD-US-USD",
-  paymentMethod: "CARD",
+  payModel: "CARD",
   country: "US",
   currency: "USD",
   amount: 100,
@@ -573,7 +573,7 @@ const selectOrderProduct = async () => {
   const product = orderSelectableProducts.value.find(
     (item) => item.productCode === orderForm.value.productCode,
   );
-  orderForm.value.paymentMethod = "";
+  orderForm.value.payModel = "";
   orderCreateCapabilities.value = [];
   if (!product) {
     orderForm.value.country = "";
@@ -587,7 +587,7 @@ const selectOrderProduct = async () => {
   ]);
   orderCreateCapabilities.value = capabilities.items;
   orderForm.value.country = product.defaultCountry;
-  orderForm.value.paymentMethod = orderPaymentMethods.value[0] || "";
+  orderForm.value.payModel = orderPaymentMethods.value[0] || "";
 };
 const selectOrderMerchant = async () => {
   orderCreateMerchantProducts.value = orderForm.value.merchantId
@@ -637,7 +637,7 @@ const createNewOrder = async () => {
     !orderForm.value.merchantId.trim() ||
     !orderForm.value.merchantOrderNo.trim() ||
     !orderForm.value.productCode.trim() ||
-    !orderForm.value.paymentMethod.trim() ||
+    !orderForm.value.payModel.trim() ||
     !orderForm.value.country.trim() ||
     !orderForm.value.currency.trim() ||
     !Number.isFinite(orderForm.value.amount) ||
@@ -657,7 +657,7 @@ const createNewOrder = async () => {
     merchantId: orderForm.value.merchantId.trim(),
     merchantOrderNo: orderForm.value.merchantOrderNo.trim(),
     productCode: orderForm.value.productCode.trim().toUpperCase(),
-    paymentMethod: orderForm.value.paymentMethod.trim().toUpperCase(),
+    payModel: orderForm.value.payModel.trim().toUpperCase(),
     country: orderForm.value.country.trim().toUpperCase(),
     currency: orderForm.value.currency.trim().toUpperCase(),
     expireAt: parsedExpireAt?.toISOString(),
@@ -666,6 +666,7 @@ const createNewOrder = async () => {
     customerReference: orderForm.value.customerReference?.trim() || undefined,
     payoutDestinationRef: orderForm.value.payoutDestinationRef?.trim() || undefined,
     description: orderForm.value.description?.trim() || undefined,
+    channelParams: orderForm.value.channelParams || {},
   };
   const key = crypto.randomUUID();
   const result = await run(
@@ -683,7 +684,7 @@ const openCreateOrder = async () => {
     merchantId: "",
     merchantOrderNo: `web-${Date.now()}`,
     productCode: "",
-    paymentMethod: "",
+    payModel: "",
     country: "",
     currency: "",
     amount: orderForm.value.amount || 100,
@@ -1011,7 +1012,7 @@ onMounted(async () => {
                 <label class="form-field"><span>商户 <b>*</b></span><select v-model="orderForm.merchantId" :disabled="orderCreateLoading" @change="selectOrderMerchant"><option value="">选择商户</option><option v-for="merchant in orderCreateMerchants" :key="merchant.merchantId" :value="merchant.merchantId">{{ merchant.name }} · {{ merchant.merchantId }}</option></select></label>
                 <label class="form-field"><span>商户订单号 <b>*</b></span><input v-model="orderForm.merchantOrderNo" maxlength="128" placeholder="商户侧唯一订单号" /></label>
                 <label class="form-field"><span>产品 <b>*</b></span><select v-model="orderForm.productCode" :disabled="orderCreateLoading || !orderForm.merchantId || !orderSelectableProducts.length" @change="selectOrderProduct"><option value="">选择产品</option><option v-for="product in orderSelectableProducts" :key="product.productCode" :value="product.productCode">{{ product.name }} · {{ product.productCode }}</option></select></label>
-                <label class="form-field"><span>支付方式 <b>*</b></span><select v-model="orderForm.paymentMethod" :disabled="orderCreateLoading || !orderForm.productCode || !orderPaymentMethods.length"><option value="">选择支付方式</option><option v-for="paymentMethod in orderPaymentMethods" :key="paymentMethod" :value="paymentMethod">{{ paymentMethod }}</option></select></label>
+                <label class="form-field"><span>支付方式 <b>*</b></span><select v-model="orderForm.payModel" :disabled="orderCreateLoading || !orderForm.productCode || !orderPaymentMethods.length"><option value="">选择支付方式</option><option v-for="paymentMethod in orderPaymentMethods" :key="paymentMethod" :value="paymentMethod">{{ paymentMethod }}</option></select></label>
                 <label class="form-field"><span>国家 / 地区 <b>*</b></span><select v-model="orderForm.country" :disabled="orderCreateLoading || !orderForm.productCode" @change="selectOrderCountry"><option value="">选择国家 / 地区</option><option v-for="country in orderCreateCountries" :key="country.code" :value="country.code">{{ country.name }} · {{ country.code }}</option></select></label>
                 <label class="form-field"><span>币种 <b>*</b></span><select v-model="orderForm.currency" :disabled="orderCreateLoading || !orderForm.country || !orderCreateCurrencies.length"><option value="">选择币种</option><option v-for="currency in orderCreateCurrencies" :key="currency.code" :value="currency.code">{{ currency.code }} · {{ currency.name }}</option></select></label>
               </div>
