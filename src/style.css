@@ -1616,6 +1616,7 @@ nav button.active::before { background: var(--accent); }
 .order-management-panel > .panel-title { display: none; }
 .order-list-filter { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px 16px; margin-bottom: 16px; padding: 16px; border: 1px solid #ebeef5; border-radius: 4px; background: #f8fafc; }
 .order-filter-fields { display: grid; flex: 1 1 740px; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 14px 16px; }
+.order-filter-fields .el-date-editor { width: 100%; }
 .order-filter-actions { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; min-height: 42px; }
 .order-filter-actions .toolbar-summary { margin-right: auto; white-space: nowrap; }
 .order-list { margin-top: 0; }

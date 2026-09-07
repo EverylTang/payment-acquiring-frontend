@@ -34,6 +34,7 @@ import { getRoles, getUsers, type AdminUser } from "./modules/user/api";
 import { getPermissionCatalog, getRolePermissions, type AdminRole, type PermissionCatalog } from "./modules/permission/api";
 import { cancelOrder, createOrder, getOrder, getOrderHealth, getOrderPage, getOrderStatistics, resendOrderNotification, type CreateOrderRequest, type Order, type OrderPage } from "./modules/order/api";
 import { getChannelHealth, getOverview, getSnapshot, type DashboardOverview } from "./modules/dashboard/api";
+import { ElDatePicker } from "element-plus";
 import { authState, hasPermission, signOut } from "./auth";
 import { changePassword } from "./modules/auth/api";
 import { preferences, setLocale, setTheme, type AppLocale, type AppTheme } from "./preferences";
@@ -94,7 +95,7 @@ const orderPage = ref<OrderPage>({
   pageSize: 10,
   total: 0,
 });
-const orderFilters = ref({ merchantId: "", merchantOrderNo: "", orderId: "", productCode: "", status: "", currency: "", orderType: "" as "" | "PAYIN" | "PAYOUT", createdFrom: "", createdTo: "", paidFrom: "", paidTo: "" });
+const orderFilters = ref({ merchantId: "", merchantOrderNo: "", orderId: "", productCode: "", status: "", currency: "", orderType: "" as "" | "PAYIN" | "PAYOUT", createdRange: [] as string[], paidRange: [] as string[] });
 const orderFilterMerchants = ref<Merchant[]>([]);
 const orderFilterCurrencies = ref<Currency[]>([]);
 const orderFilterProducts = ref<Product[]>([]);
@@ -521,9 +522,14 @@ const loadUsers = async () => {
 const loadOrders = async (page = 1) => {
   listLoading.value = true;
   try {
+    const { createdRange, paidRange, ...filters } = orderFilters.value;
     const result = await getOrderPage({
-      ...orderFilters.value,
-      orderType: orderFilters.value.orderType || undefined,
+      ...filters,
+      orderType: filters.orderType || undefined,
+      createdFrom: createdRange[0] || undefined,
+      createdTo: createdRange[1] || undefined,
+      paidFrom: paidRange[0] || undefined,
+      paidTo: paidRange[1] || undefined,
       page,
       pageSize: orderPage.value.pageSize,
     });
@@ -618,7 +624,7 @@ const loadOrderCreateReferences = async () => {
   }
 };
 const resetOrderFilters = async () => {
-  orderFilters.value = { merchantId: "", merchantOrderNo: "", orderId: "", productCode: "", status: "", currency: "", orderType: "", createdFrom: "", createdTo: "", paidFrom: "", paidTo: "" };
+  orderFilters.value = { merchantId: "", merchantOrderNo: "", orderId: "", productCode: "", status: "", currency: "", orderType: "", createdRange: [], paidRange: [] };
   await loadOrders(1);
 };
 const findOrder = async () => {
@@ -951,10 +957,8 @@ onMounted(async () => {
             <label class="management-form-item"><span>订单类型</span><select v-model="orderFilters.orderType"><option value="">全部类型</option><option value="PAYIN">收单</option><option value="PAYOUT">出款</option></select></label>
             <label class="management-form-item"><span>订单状态</span><select v-model="orderFilters.status"><option value="">全部状态</option><option value="CREATED">已创建</option><option value="PAYING">处理中</option><option value="SUCCESS">成功</option><option value="FAILED">失败</option><option value="UNKNOWN">待确认</option><option value="CANCELED">已取消</option></select></label>
             <label class="management-form-item"><span>交易币种</span><select v-model="orderFilters.currency"><option value="">全部币种</option><option v-for="currency in orderFilterCurrencies" :key="currency.code" :value="currency.code">{{ currency.code }} · {{ currency.name }}</option></select></label>
-            <label class="management-form-item"><span>下单开始时间</span><input v-model="orderFilters.createdFrom" type="datetime-local" /></label>
-            <label class="management-form-item"><span>下单结束时间</span><input v-model="orderFilters.createdTo" type="datetime-local" /></label>
-            <label class="management-form-item"><span>支付开始时间</span><input v-model="orderFilters.paidFrom" type="datetime-local" /></label>
-            <label class="management-form-item"><span>支付结束时间</span><input v-model="orderFilters.paidTo" type="datetime-local" /></label>
+            <label class="management-form-item"><span>下单时间</span><ElDatePicker v-model="orderFilters.createdRange" type="datetimerange" value-format="YYYY-MM-DDTHH:mm:ss" format="YYYY-MM-DD HH:mm:ss" range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间" /></label>
+            <label class="management-form-item"><span>支付时间</span><ElDatePicker v-model="orderFilters.paidRange" type="datetimerange" value-format="YYYY-MM-DDTHH:mm:ss" format="YYYY-MM-DD HH:mm:ss" range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间" /></label>
           </div>
           <div class="order-filter-actions"><span class="toolbar-summary">共 {{ orderPage.total }} 笔订单</span><button class="outline-btn" type="button" @click="resetOrderFilters">重置</button><button class="primary-btn" type="submit"><Search :size="16" />查询</button><button v-if="hasPermission('order:manage')" class="primary-btn" type="button" @click="openCreateOrder">创建订单</button></div>
         </form>
