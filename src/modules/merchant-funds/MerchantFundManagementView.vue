@@ -94,3 +94,17 @@ onMounted(async () => {
   </section>
   <AppDrawer v-if="accountDetail" title="资金账户详情" :description="`${accountDetail.merchantId} · ${accountDetail.currency}`" @close="accountDetail = null"><section class="drawer-section merchant-fund-detail"><div class="settlement-detail-status"><span class="status-badge" :class="'st-' + accountDetail.status.toLowerCase()">{{ accountDetail.status }}</span><button class="outline-btn" type="button" @click="viewTransactions(accountDetail); accountDetail = null"><Search :size="15" />查看明细</button></div><dl class="settlement-detail-list"><div><dt>账户 ID</dt><dd class="mono">{{ accountDetail.accountId }}</dd></div><div><dt>可用余额</dt><dd class="fund-amount">{{ amount(accountDetail.balance, accountDetail.currency) }}</dd></div><div><dt>冻结金额</dt><dd>{{ amount(accountDetail.frozenBalance, accountDetail.currency) }}</dd></div><div><dt>累计收入</dt><dd class="fund-income">{{ amount(accountDetail.totalIncome, accountDetail.currency) }}</dd></div><div><dt>累计支出</dt><dd class="fund-expense">{{ amount(accountDetail.totalExpense, accountDetail.currency) }}</dd></div><div><dt>最后更新</dt><dd>{{ displayTime(accountDetail.updatedAt) }}</dd></div></dl></section></AppDrawer>
 </template>
+
+<style scoped>
+.merchant-fund-management .panel-title { margin-bottom: 18px; }
+.merchant-fund-tabs :deep(.el-tabs__header) { margin-bottom: 18px; }
+.merchant-fund-tabs :deep(.el-tabs__item) { height: 38px; }
+.merchant-fund-tab-label { display: inline-flex; align-items: center; gap: 7px; }
+.merchant-fund-table-shell { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--paper); }
+.merchant-fund-table-shell :deep(.el-table) { --el-table-border-color: var(--line); --el-table-header-bg-color: var(--surface-2); --el-table-tr-bg-color: var(--paper); --el-table-row-hover-bg-color: var(--row-hover); --el-table-text-color: var(--ink); min-width: 980px; }
+.merchant-fund-table-shell .table-subtext { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+.merchant-fund-table-shell .table-date { color: var(--muted); font: 11px 'DM Mono', monospace; white-space: nowrap; }
+.fund-amount { color: var(--ink); font-family: 'DM Mono', monospace; font-weight: 600; white-space: nowrap; }
+.fund-income { color: var(--success); font-family: 'DM Mono', monospace; font-weight: 600; white-space: nowrap; }
+.fund-expense { color: var(--danger); font-family: 'DM Mono', monospace; font-weight: 600; white-space: nowrap; }
+</style>

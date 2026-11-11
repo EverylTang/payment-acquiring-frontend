@@ -83,3 +83,12 @@ const execute = async () => {
     </div>
   </section>
 </template>
+
+<style scoped>
+.detail-panel { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 18px; }
+.detail-panel h4 { color: var(--ink); }
+.refund-panel .form-grid { grid-template-columns: minmax(140px, .6fr) minmax(180px, 1fr) auto; margin-bottom: 10px; }
+.refund-panel .record-row { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.refund-panel .record-row strong { font: 500 12px 'DM Mono', monospace; color: var(--accent-dark); }
+.app-drawer .refund-panel { margin-top: 24px; }
+</style>

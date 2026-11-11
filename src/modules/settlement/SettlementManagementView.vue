@@ -100,3 +100,23 @@ onMounted(async () => { try { const [merchantResult, productResult] = await Prom
     <AppDrawer v-if="drawer === 'batch'" title="手动执行结算" description="SETTLEMENT BATCH" @close="drawer = null"><section class="drawer-section settlement-drawer-form"><div class="drawer-section-heading"><h4>执行或查询批次</h4><small>执行指定日期的待结算明细，也可以输入已有批次 ID 查看结果。</small></div><div class="drawer-form-grid"><label class="form-field"><span>结算日期</span><input v-model="date" type="date" /></label><label class="form-field form-field-full"><span>批次 ID</span><input v-model="batchId" placeholder="输入批次 ID 查询" @keyup.enter="inspect" /></label></div><div class="drawer-actions"><button v-if="hasPermission('settlement:batch:read')" class="outline-btn" type="button" :disabled="inspecting || !batchId.trim()" @click="inspect"><Search :size="16" />查询批次</button><button v-if="hasPermission('settlement:batch:run')" class="primary-btn" type="button" :disabled="running" @click="run"><Play :size="16" />{{ running ? "执行中" : "执行批次" }}</button></div><div v-if="batch" class="settlement-detail-metrics"><div><span>批次 ID</span><strong>{{ batch.batchId }}</strong></div><div><span>结算日期</span><strong>{{ batch.settlementDate }}</strong></div><div><span>订单数</span><strong>{{ batch.totalOrders }}</strong></div><div><span>商户数</span><strong>{{ batch.totalMerchants }}</strong></div><div><span>结算总额</span><strong>{{ batch.totalAmount }}</strong></div><div><span>状态</span><strong>{{ batch.status }}</strong></div></div><div v-if="details.length" class="settlement-line-table-wrap"><table class="data-table settlement-line-table"><thead><tr><th>明细 ID</th><th>订单 ID</th><th>商户</th><th>币种</th><th>结算金额</th><th>状态</th></tr></thead><tbody><tr v-for="detail in details" :key="String(detail.detailId)"><td class="mono">{{ detail.detailId }}</td><td class="mono">{{ detail.orderId }}</td><td>{{ detail.merchantId }}</td><td>{{ detail.currency }}</td><td>{{ detail.settlementAmount }}</td><td>{{ detail.status }}</td></tr></tbody></table></div></section></AppDrawer>
   </section>
 </template>
+
+<style scoped>
+.settlement-drawer-form {
+  min-height: max-content;
+}
+.settlement-drawer-form { display: grid; gap: 16px; }
+.settlement-drawer-form .drawer-summary { margin: 0; }
+.settlement-detail-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 20px 0 24px; }
+.settlement-detail-metrics div { padding: 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-2); }
+.settlement-detail-metrics span { display: block; color: var(--muted); font-size: 12px; }
+.settlement-detail-metrics strong { display: block; margin-top: 6px; color: var(--ink); font: 600 14px 'DM Mono', monospace; }
+.settlement-management .panel-title { margin-bottom: 18px; }
+.settlement-table-shell { overflow: auto; max-height: min(46vh, 520px); border: 1px solid var(--line); border-radius: 4px; background: var(--paper); }
+.settlement-management > .app-pagination { min-height: 52px; margin-top: 12px; }
+.settlement-table-shell :deep(.el-table) { --el-table-border-color: var(--line); --el-table-header-bg-color: var(--surface-2); --el-table-tr-bg-color: var(--paper); --el-table-row-hover-bg-color: var(--row-hover); --el-table-text-color: var(--ink); min-width: 820px; }
+.settlement-table-shell :deep(.el-table th.el-table__cell) { color: var(--ink-soft); font-size: 12px; font-weight: 600; }
+.settlement-table-shell :deep(.el-table td.el-table__cell) { height: 58px; color: var(--ink); font-size: 13px; }
+.settlement-table-shell :deep(.el-table .cell) { overflow: visible; }
+.settlement-table-shell .table-subtext { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+</style>

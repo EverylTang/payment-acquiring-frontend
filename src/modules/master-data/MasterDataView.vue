@@ -86,3 +86,22 @@ onMounted(load);
     <AppDrawer v-if="currencyDrawer && managedCountry" :title="`${managedCountry.name} · 新增币种`" description="CREATE AND ASSOCIATE" contained @close="currencyDrawer = false"><form class="master-data-form" @submit.prevent="createCurrencyAndAssociate"><section class="drawer-section"><div class="drawer-section-heading"><div><h4>币种信息</h4><small>保存后自动关联至 {{ managedCountry.name }}，无需额外配置。</small></div></div><div class="drawer-form-grid"><label class="form-field"><span>币种代码 <b>*</b></span><input v-model="currencyForm.code" maxlength="3" placeholder="USD" @input="currencyForm.code = currencyForm.code.toUpperCase()" /></label><label class="form-field"><span>币种名称 <b>*</b></span><input v-model="currencyForm.name" maxlength="128" placeholder="例如 美元" /></label><label class="form-field"><span>币种符号</span><input v-model="currencyForm.symbol" maxlength="16" placeholder="$" /></label><label class="form-field"><span>金额小数位 <b>*</b></span><input v-model.number="currencyForm.decimalPlaces" type="number" min="0" max="6" /></label></div></section><div class="product-drawer-actions"><button class="outline-btn" type="button" @click="currencyDrawer = false">取消</button><button class="primary-btn" type="submit" :disabled="saving || !currencyForm.code || !currencyForm.name"><Save :size="16" />{{ saving ? '创建中' : '创建并关联' }}</button></div></form></AppDrawer>
   </section>
 </template>
+
+<style scoped>
+.master-data-view { position: relative; }
+.product-drawer-actions { position: absolute; right: 0; bottom: 0; left: 0; display: flex; justify-content: flex-end; gap: 10px; padding: 14px 24px; border-top: 1px solid var(--line); background: var(--elevated); }
+.master-data-view .panel-title small { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; font-weight: 400; }
+.code-pill { display: inline-flex; min-width: 38px; justify-content: center; padding: 3px 7px; border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius: 4px; color: var(--accent-dark); background: var(--accent-soft); font: 600 11px "DM Mono", monospace; }
+.master-empty { height: 180px; color: var(--muted); text-align: center; }
+.master-error { margin: 0 0 14px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); border-radius: 6px; color: var(--danger); background: color-mix(in srgb, var(--danger) 7%, transparent); font-size: 12px; }
+.master-data-form { padding-bottom: 70px; }
+.currency-relation-list { display: grid; gap: 8px; }
+.currency-relation-list article { display: grid; grid-template-columns: minmax(0, 1fr) auto 32px; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
+.currency-relation-list article div { display: grid; gap: 3px; min-width: 0; }
+.currency-relation-list article strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.currency-relation-list article small { color: var(--muted); font: 600 11px "DM Mono", monospace; }
+@media (max-width: 560px) {
+  .product-drawer-actions { padding-inline: 16px; } .product-drawer-actions button { flex: 1; }
+}
+.country-name-column { width: 25%; }.country-code-column { width: 14%; }.country-region-column { width: 24%; }.country-status-column { width: 14%; }
+</style>

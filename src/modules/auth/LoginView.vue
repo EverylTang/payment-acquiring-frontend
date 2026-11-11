@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { ArrowRight, LoaderCircle, ShieldCheck } from "lucide-vue-next";
-import { signIn } from "../../auth";
+import { authState, signIn } from "../../auth";
 
 const username = ref("admin");
 const password = ref("");
@@ -19,6 +19,7 @@ const loginErrorMessage = (reason: unknown) => {
 const submit = async () => {
   busy.value = true;
   error.value = "";
+  authState.expiredNotice = "";
   try {
     await signIn(username.value, password.value);
   } catch (reason) {
@@ -60,6 +61,9 @@ const submit = async () => {
             autocomplete="current-password"
             required
         /></label>
+        <div v-if="authState.expiredNotice" class="login-error">
+          {{ authState.expiredNotice }}
+        </div>
         <div v-if="error" class="login-error">{{ error }}</div>
         <button class="primary-btn login-submit" :disabled="busy">
           <LoaderCircle v-if="busy" class="spin" :size="17" /><template v-else

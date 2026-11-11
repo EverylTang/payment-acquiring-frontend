@@ -61,3 +61,23 @@ onMounted(load);
     <AppDrawer v-if="drawer === 'list'" title="新增名单" description="LIST MANAGEMENT" @close="drawer = null"><div class="risk-detail"><label>名单类型<select v-model="listForm.listType"><option>BLACK</option><option>WHITE</option><option>GREY</option></select></label><label>对象类型<select v-model="listForm.subjectType"><option>MERCHANT</option><option>EMAIL</option><option>PHONE</option><option>IP</option><option>DEVICE</option><option>CARD</option></select></label><label>对象标识<input v-model="listForm.subjectValue" placeholder="仅用于本地哈希，不会保存原文" /></label><label>处置标签<input v-model="listForm.label" placeholder="例如 已确认盗刷" /></label><label>失效时间（可选）<input v-model="listForm.expiresAt" type="datetime-local" /></label><button class="primary-btn drawer-submit" :disabled="saving || !listForm.subjectValue || !listForm.label" @click="saveList">保存名单</button></div></AppDrawer>
   </section>
 </template>
+
+<style scoped>
+.risk-workspace { max-width: 1440px; margin: 28px auto 0; padding: 26px; }
+.risk-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 24px; }
+.risk-metrics article { padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.risk-metrics span, .risk-metrics small { display: block; color: var(--muted); font-size: 11px; }
+.risk-metrics strong { display: block; margin: 8px 0; color: var(--ink); font: 600 28px 'DM Mono', monospace; }
+.risk-tabs { display: flex; gap: 18px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+.risk-tabs button { padding: 10px 2px; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-size: 13px; }
+.risk-tabs button.active { border-color: var(--accent); color: var(--accent-dark); font-weight: 600; }
+.risk-filters, .risk-list-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; }
+.risk-filters select { width: 150px; }.risk-filters input { width: 220px; }.risk-list-toolbar { justify-content: space-between; }.risk-list-toolbar select { width: 160px; }
+.risk-table { min-width: 900px; }.risk-table td { vertical-align: middle; }.risk-level, .risk-list-type { display: inline-flex; padding: 4px 8px; border-radius: 4px; font: 500 10px 'DM Mono', monospace; }
+.risk-critical { color: var(--danger); background: rgba(220,38,38,.12); }.risk-high, .list-black { color: var(--warning); background: rgba(234,88,12,.12); }.risk-medium, .list-grey { color: var(--warning); background: rgba(217,119,6,.12); }.risk-low, .list-white { color: var(--success); background: rgba(5,150,105,.11); }
+.risk-policy-guide { display: flex; gap: 14px; align-items: flex-start; padding: 28px; border: 1px solid var(--line); border-radius: 8px; background: var(--accent-soft); color: var(--accent-dark); }.risk-policy-guide p { max-width: 720px; margin: 8px 0 0; color: var(--ink-soft); line-height: 1.75; font-size: 13px; }
+.risk-workspace > .configuration-center { min-height: 0; margin-top: 0; }
+.risk-workspace { position: relative; }
+.risk-workspace-drawer-host { position: absolute; z-index: 120; inset: 0; pointer-events: none; }
+.risk-detail { display: grid; gap: 16px; }.risk-detail h4 { margin: 0; color: var(--ink); }.risk-detail label { display: grid; gap: 8px; color: var(--ink-soft); font-size: 12px; font-weight: 600; }.risk-detail dl { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin: 0; }.risk-detail dl div { padding: 10px; border: 1px solid var(--line); border-radius: 6px; }.risk-detail dt { color: var(--muted-light); font-size: 10px; }.risk-detail dd { margin: 5px 0 0; overflow-wrap: anywhere; color: var(--ink); font: 11px 'DM Mono', monospace; }
+</style>

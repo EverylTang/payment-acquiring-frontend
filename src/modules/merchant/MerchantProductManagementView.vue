@@ -179,3 +179,10 @@ onMounted(() => { void Promise.all([load(), loadReferenceOptions()]); });
   </AppDrawer>
   </section>
 </template>
+
+<style scoped>
+.merchant-product-management-page { position: relative; }
+.merchant-product-merchant-column { width: 16%; }.merchant-product-app-column { width: 12%; }.merchant-product-product-column { width: 16%; }.merchant-product-method-column { width: 18%; }.merchant-product-status-column { width: 10%; }.merchant-product-time-column { width: 16%; }
+.merchant-product-table td small { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; }
+.merchant-product-table .app-id-value { color: var(--accent-dark); font-size: 15px; }
+</style>

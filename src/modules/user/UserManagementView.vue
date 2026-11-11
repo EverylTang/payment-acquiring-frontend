@@ -238,3 +238,18 @@ onMounted(load);
     </section>
   </AppDrawer>
 </template>
+
+<style scoped>
+.role-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-height: 42px; }
+.role-choice label { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-soft); font-size: 12px; white-space: nowrap; }
+.role-choice input { width: auto; height: auto; accent-color: var(--accent); }
+.user-form { display: grid; gap: 20px; }
+.user-form-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.user-form-section { min-width: 0; margin: 0; padding: 20px 0 0; border: 0; border-top: 1px solid var(--line); }
+.user-form-section legend, .user-form-section h4 { margin: 0 0 12px; padding: 0; color: var(--ink); font-size: 13px; font-weight: 600; }
+.user-form-section .form-field + .drawer-submit { margin-top: 14px; }
+@media (max-width: 560px) {
+  .user-form-fields { grid-template-columns: 1fr; }
+}
+.user-name-column { width: 20%; }.user-account-column { width: 19%; }.user-role-column { width: 24%; }.user-status-column { width: 12%; }
+</style>

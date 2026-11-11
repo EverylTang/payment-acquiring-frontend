@@ -7,18 +7,29 @@
 - Vue 3
 - TypeScript
 - Vite
+- Element Plus(局部组件)
 - Lucide Vue
+- ESLint(typescript-eslint + eslint-plugin-vue)
 
 ## 目录
 
 ```text
 payment-acquiring-frontend/
 ├── src/
-│   ├── App.vue
-│   ├── main.ts
-│   └── style.css
-├── index.html
+│   ├── App.vue                 # 控制台外壳:侧边栏菜单、页面映射、通知队列
+│   ├── main.ts                 # 根组件:登录态分流(LoginView / App)
+│   ├── api.ts                  # 统一 HTTP 请求(Bearer / 401 会话失效)
+│   ├── auth.ts                 # 登录、会话恢复、权限判断
+│   ├── preferences.ts          # 语言/主题偏好(含 DOM 级中英翻译,待重构为 i18n)
+│   ├── style.css
+│   └── modules/                # 按业务域划分:视图 + 各自 api.ts
+│       ├── account/ auth/ configuration/ dashboard/ master-data/
+│       ├── menu/ merchant/ merchant-funds/ operations/ order/
+│       ├── permission/ pricing/ product/ refund/ risk/ routing/
+│       ├── settlement/ user/
+├── eslint.config.mjs
 ├── vite.config.ts
+├── .env.example
 ├── package.json
 ├── package-lock.json
 ├── tsconfig.json
@@ -41,12 +52,16 @@ npm run dev
 npm run dev:stage
 npm run dev:prod
 
+npm run build          # 默认 prod 模式
 npm run build:dev
 npm run build:stage
 npm run build:prod
+
+npm run typecheck
+npm run lint           # ESLint(渐进策略:真实错误阻断,风格规则暂关)
 ```
 
-前端开发服务器默认通过 `/api` 访问后端网关，代理地址由 `vite.config.ts` 根据 `dev`、`stage`、`prod` 模式选择。若不同环境使用不同网关地址，直接修改配置文件中的 `proxyTargets`，不要通过 `.env` 注入。
+前端开发服务器默认通过 `/api` 访问后端网关,代理目标取 `VITE_API_PROXY_TARGET`(默认 `http://127.0.0.1:8080`)。可按模式复制 `.env.example` 为 `.env.local` / `.env.stage` / `.env.prod` 覆盖;生产构建不含代理,需由部署层反向代理把 `/api` 转发到 Gateway。
 
 ## 前后端联调
 
@@ -66,9 +81,9 @@ Platform 管理后台登录接口为 `/api/admin/v1/auth/login`。登录成功�
 npm run dev
 ```
 
-当前前端已接入登录与会话恢复、动态菜单、用户/角色/数据范围、菜单、商户及联系人凭证、产品和产品能力、商户产品、渠道/路由/费率/风控配置发布、订单、退款、对账和运营审计等真实 API。
+当前前端已接入登录与会话恢复、动态菜单、用户/角色/数据范围、菜单、商户及联系人凭证、产品和产品能力、商户产品、渠道/路由/费率/风控配置发布、订单与退款(创建/执行/回调查询)、商户资金账户与账务流水、结算规则与批次、对账、死信重投和运营审计等真实 API;401 会话过期会明确提示重新登录。
 
-当前仍采用单页控制台。退款列表、资金分录查询以及跨页全局筛选依赖后端补充查询接口；前端尚未配置组件和端到端测试框架。
+当前仍为单页控制台(无 vue-router,菜单驱动的组件映射导航)。跨页全局筛选依赖后端补充查询接口;前端尚无组件与端到端测试框架(验证仅 typecheck + lint + build)。中英切换目前是 `preferences.ts` 的 DOM 级文本替换,属临时方案,待重构为正规 i18n。
 
 ## Git 上传
 
@@ -86,21 +101,22 @@ git push -u origin main
 ### P0
 
 1. 增加渠道回调记录查询。
-2. 增加退款列表与资金分录查询页面。
-3. 为管理列表补齐服务端筛选和统一表单校验。
-4. 完成按钮级权限回归。
+2. 为管理列表补齐服务端筛选和统一表单校验。
+3. 完成按钮级权限回归。
 
 ### P1
 
 1. 支持菜单的编辑、层级调整、可见性和排序。
 2. 支持商户产品的筛选和关联配置视图。
 3. 将模拟回调迁移至受控测试工具页。
+4. 用 vue-i18n 重构 `preferences.ts` 的 DOM 级中英翻译。
 
 ### P2
 
 1. 接入 OpenAPI 类型生成。
-2. 增加端到端浏览器验收、错误恢复和权限回归测试。
+2. 增加 Vitest 组件测试与端到端浏览器验收、错误恢复和权限回归测试。
 3. 完善指标、告警和生产环境配置提示。
+4. 视页面增长评估引入 vue-router。
 
 ## 前端边界
 

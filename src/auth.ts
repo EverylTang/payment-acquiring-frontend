@@ -8,7 +8,8 @@ export const authState = reactive<{
   user: CurrentUser | null;
   access: AccessResponse | null;
   ready: boolean;
-}>({ user: null, access: null, ready: false });
+  expiredNotice: string;
+}>({ user: null, access: null, ready: false, expiredNotice: "" });
 
 export const restoreSession = async () => {
   if (getAccessToken()) {
@@ -29,6 +30,7 @@ export const signIn = async (username: string, password: string) => {
   setAccessToken(response.accessToken);
   authState.user = response.user;
   authState.access = await getAccess();
+  authState.expiredNotice = "";
 };
 
 export const hasPermission = (permission: string) =>
@@ -42,4 +44,9 @@ export const signOut = () => {
   authState.access = null;
 };
 
-setUnauthorizedHandler(signOut);
+const handleUnauthorized = () => {
+  signOut();
+  authState.expiredNotice = "登录已过期,请重新登录。";
+};
+
+setUnauthorizedHandler(handleUnauthorized);

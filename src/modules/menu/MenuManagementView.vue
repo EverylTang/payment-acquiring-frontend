@@ -185,3 +185,35 @@ onMounted(load);
   <AppDrawer v-if="resourceTypeDrawerOpen" title="新增资源类型" description="RESOURCE TYPE" @close="closeResourceTypeDrawer"><form class="drawer-section menu-drawer-form" @submit.prevent="saveResourceType"><div class="drawer-form-grid"><label class="form-field"><span>资源类型编码</span><input v-model="resourceTypeForm.resourceType" maxlength="64" placeholder="例如 REPORT" @input="resourceTypeForm.resourceType = resourceTypeForm.resourceType.toUpperCase()" /></label><label class="form-field"><span>资源类型名称</span><input v-model="resourceTypeForm.resourceName" maxlength="128" placeholder="例如 报表资源" /></label></div><button class="primary-btn drawer-submit" type="submit" :disabled="resourceTypeSaving || !resourceTypeForm.resourceType.trim() || !resourceTypeForm.resourceName.trim()"><Save :size="16" />创建资源类型</button></form></AppDrawer>
   <AppDrawer v-if="permissionDrawerMenu" title="操作权限管理" :description="permissionDrawerMenu.menuName" @close="closePermissionDrawer"><section class="drawer-section permission-form-section"><div class="drawer-section-heading"><h4>{{ permissionTitle }}</h4><button v-if="editingPermission" class="outline-btn action-btn" type="button" title="取消编辑权限" @click="resetPermissionForm">取消</button></div><form class="permission-drawer-form" @submit.prevent="savePermission"><label class="form-field"><span>操作编码</span><div class="permission-code-input"><b>{{ permissionDrawerMenu.menuCode }}:</b><input v-model="permissionForm.actionCode" :disabled="!!editingPermission" placeholder="例如 list" /></div></label><label class="form-field"><span>权限名称</span><input v-model="permissionForm.permissionName" placeholder="例如 查看报表" /></label><label class="form-field"><span>资源类型</span><select v-model="permissionForm.resourceType"><option v-if="!menuPermissionTypeOptions.length" value="" disabled>请先在菜单中关联资源类型</option><option v-for="type in menuPermissionTypeOptions" :key="type.resourceType" :value="type.resourceType">{{ type.resourceName }}（{{ type.resourceType }}）</option></select></label><button class="primary-btn drawer-submit" type="submit" :disabled="permissionSaving || !permissionForm.actionCode || !permissionForm.permissionName || !permissionForm.resourceType"><Save :size="16" />{{ editingPermission ? "保存权限" : "新增权限" }}</button></form></section><section class="drawer-section permission-list-section"><h4>已配置操作</h4><div v-if="permissionsLoading" class="empty">加载中…</div><div v-else-if="!permissions.length" class="empty">暂无操作权限</div><div v-else class="permission-record-list"><div v-for="permission in permissions" :key="permission.permissionCode" class="permission-record-row"><div><strong>{{ permission.permissionName }}</strong><small>{{ permission.permissionCode }} · {{ permission.resourceType }}</small></div><span class="status-badge" :class="'st-' + permission.status.toLowerCase()">{{ permission.status }}</span><div class="button-row"><button class="outline-btn action-btn" type="button" title="编辑操作权限" @click="editPermission(permission)"><Pencil :size="14" />编辑</button><button class="outline-btn action-btn" type="button" title="切换操作权限状态" @click="togglePermission(permission)"><ToggleLeft :size="14" />{{ permission.status === 'ACTIVE' ? '停用' : '启用' }}</button><button class="outline-btn action-btn danger-outline-btn" type="button" title="删除操作权限" @click="removePermission(permission)"><Trash2 :size="14" />删除</button></div></div></div></section></AppDrawer>
 </template>
+
+<style scoped>
+.menu-drawer-form, .permission-drawer-form { display: grid; gap: 16px; }
+.drawer-check { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 12px; }
+.drawer-check input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
+.menu-resource-types { display: grid; gap: 10px; margin: 0; padding: 14px 0 0; border: 0; border-top: 1px solid var(--line); }
+.menu-resource-types legend { padding: 0; color: var(--ink); font-size: 12px; font-weight: 600; }
+.resource-types-toolbar { display: flex; justify-content: flex-end; margin-top: -28px; }
+.resource-type-create { padding: 4px 8px; font-size: 11px; }
+.resource-type-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.resource-type-option { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 9px 10px; border: 1px solid var(--line-dark); border-radius: 6px; color: var(--ink-soft); background: var(--surface-raised); cursor: pointer; transition: border-color .15s ease, background .15s ease; }
+.resource-type-option:hover { border-color: var(--accent); }
+.resource-type-option.selected { border-color: var(--accent); background: color-mix(in srgb, var(--info) 6%, transparent); }
+.resource-type-option input { width: 15px; height: 15px; flex: 0 0 auto; margin: 0; accent-color: var(--accent); }
+.resource-type-option span { display: grid; min-width: 0; gap: 2px; }
+.resource-type-option b { overflow: hidden; color: var(--ink); font-size: 12px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.resource-type-option small { overflow: hidden; color: var(--muted-light); font: 10px 'DM Mono', monospace; text-overflow: ellipsis; white-space: nowrap; }
+.permission-code-input { display: flex; align-items: center; overflow: hidden; border: 1px solid var(--line-dark); border-radius: 6px; background: var(--surface-raised); }
+.permission-code-input b { flex: 0 0 auto; padding: 0 10px; color: var(--muted); font: 11px 'DM Mono', monospace; }
+.permission-code-input input { border: 0; border-left: 1px solid var(--line); border-radius: 0; background: transparent; }
+.permission-record-list { display: grid; }
+.permission-record-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.permission-record-row:last-child { border-bottom: 0; }
+.permission-record-row strong, .permission-record-row small { display: block; }
+.permission-record-row strong { color: var(--ink); font-size: 12px; }
+.permission-record-row small { margin-top: 3px; overflow: hidden; color: var(--muted-light); font: 10px 'DM Mono', monospace; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 560px) {
+  .resource-type-grid { grid-template-columns: 1fr; }
+}
+.permission-record-row .button-row { flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.menu-name-column { width: 15%; }.menu-code-column { width: 18%; }.menu-type-column { width: 9%; }.menu-route-column { width: 14%; }.menu-visible-column { width: 8%; }.menu-status-column { width: 9%; }
+</style>

@@ -24,7 +24,8 @@ export const request = async <T>(
       ...(init?.headers || {}),
     },
   });
-  if (response.status === 401) unauthorizedHandler();
+  // 携带过 token 仍返回 401 → 会话失效;未登录时(如密码错误)的 401 交由调用方展示错误。
+  if (response.status === 401 && token) unauthorizedHandler();
   if (!response.ok) {
     const raw = await response.text();
     let payload: { code?: string; message?: string } | undefined;

@@ -321,3 +321,11 @@ onMounted(load);
     </AppDrawer>
   </section>
 </template>
+
+<style scoped>
+.operation-form { display: grid; gap: 10px; margin: 24px 0; padding: 20px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+.operation-form .panel-title { margin: 0; }
+.operation-form .panel-title h4 { margin: 5px 0 0; font-size: 14px; }
+.operation-form .button-row { justify-content: flex-start; }
+.operation-form .button-row input { max-width: 280px; }
+</style>

@@ -158,3 +158,9 @@ onMounted(load);
     <AppDialog v-if="pending" :title="actionLabels[pending.action]" :message="`版本 v${pending.release.versionNo} · ${pending.release.releaseId}`" :confirm-text="actionLabels[pending.action]" :danger="pending.action === 'rollback'" input-placeholder="请输入操作原因" input-value="运营后台操作" @confirm="runAction" @cancel="pending = null" />
   </section>
 </template>
+
+<style scoped>
+.settlement-lines-field { display: grid; gap: 7px; color: var(--ink); font-size: 13px; font-weight: 600; }
+.settlement-lines-field textarea { width: 100%; min-height: 184px; resize: vertical; padding: 10px; border: 1px solid var(--line-dark); border-radius: 4px; color: var(--ink); background: var(--inset-field); font: 11px/1.55 'DM Mono', monospace; }
+.settlement-lines-field textarea:focus { border-color: var(--accent); outline: 2px solid color-mix(in srgb, var(--accent) 14%, transparent); }
+</style>

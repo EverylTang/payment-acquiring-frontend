@@ -24,6 +24,8 @@ const applyPreferences = () => {
   if (typeof document === "undefined") return;
   document.documentElement.lang = preferences.locale;
   document.documentElement.dataset.theme = preferences.theme;
+  // Element Plus 暗色变量以 <html class="dark"> 为开关,与 midnight 主题保持一致。
+  document.documentElement.classList.toggle("dark", preferences.theme === "midnight");
 };
 
 export const setLocale = (locale: AppLocale) => {
@@ -46,6 +48,13 @@ const englishTexts: Record<string, string> = {
   "确认": "Confirm",
   "上一页": "Previous",
   "下一页": "Next",
+  "前往": "Go to",
+  "页": "page",
+  "条记录": "records",
+  "条风险事件": "risk events",
+  "条名单": "list entries",
+  "条支付事件": "payment events",
+  "条结算账单": "settlement bills",
   "加载中…": "Loading...",
   "暂无数据": "No data available",
   "查询": "Search",
@@ -302,6 +311,7 @@ const translateDynamicText = (text: string) => {
       .replace(/^Priority (.+)$/, "优先级 $1")
       .replace(/^Version v(.+)$/, "版本 v$1")
       .replace(/^Page (\d+) \/ (\d+), (\d+) (.+)$/, (_, page, totalPages, total, noun) => `第 ${page} / ${totalPages} 页，共 ${total} ${t(noun)}`)
+      .replace(/^(\d+)\/page$/, "$1 条/页")
       .replace(/Created by/g, "创建人")
       .replace(/Weight/g, "权重")
       .replace(/Priority/g, "优先级");
@@ -324,6 +334,7 @@ const translateDynamicText = (text: string) => {
     .replace(/^优先级 (.+)$/, "Priority $1")
     .replace(/^版本 v(.+)$/, "Version v$1")
     .replace(/^第 (\d+) \/ (\d+) 页，共 (\d+) (.+)$/, (_, page, totalPages, total, noun) => `Page ${page} / ${totalPages}, ${total} ${t(noun)}`)
+    .replace(/^(\d+) 条\/页$/, "$1/page")
     .replace(/创建人/g, "Created by")
     .replace(/权重/g, "Weight")
     .replace(/优先级/g, "Priority");

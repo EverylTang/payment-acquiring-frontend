@@ -530,3 +530,34 @@ onMounted(load);
     </Teleport>
   </section>
 </template>
+
+<style scoped>
+.workspace-tabs-compact { margin-top: -4px; margin-bottom: 18px; }
+.configuration-subpage { min-height: 300px; }
+.configuration-subpage > .section-heading { margin-top: 0; }
+.fee-tier-section { grid-column: 1 / -1; display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; }
+.fee-tier-list { display: grid; gap: 8px; }
+.fee-tier-labels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; color: var(--muted); font-size: 12px; }
+.fee-tier-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) 32px; gap: 8px; align-items: center; }
+@media (max-width: 560px) {
+  .fee-tier-row { grid-template-columns: 1fr; }
+  .fee-tier-labels { display: none; }
+  .fee-tier-row .icon-btn { justify-self: end; }
+}
+.configuration-element-form { display: grid; gap: 16px; }
+.configuration-element-form :deep(.el-form-item) { min-width: 0; margin-bottom: 0; }
+.configuration-element-form :deep(.el-form-item__label) { height: auto; padding: 0 0 6px; color: var(--ink); font-size: 12px; font-weight: 500; line-height: 18px; }
+.configuration-element-form :deep(.el-input), .configuration-element-form :deep(.el-select), .configuration-element-form :deep(.el-input-number) { width: 100%; }
+.configuration-element-form :deep(.el-input-number .el-input__wrapper) { width: 100%; }
+.configuration-element-form :deep(.el-textarea__inner) { min-height: 116px !important; font: 11px/1.55 'DM Mono', monospace; }
+.configuration-element-form .configuration-json-field { grid-column: 1 / -1; }
+.risk-policy-form .drawer-section-heading { padding: 14px 16px; border: 1px solid rgba(8,145,178,.18); border-radius: 6px; background: rgba(8,145,178,.055); }
+.risk-policy-form .drawer-section-heading h4 { margin-bottom: 4px; }
+.risk-policy-form .drawer-section-heading small { display: block; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.risk-policy-form :deep(.el-textarea__inner) { padding: 12px; border-radius: 6px; background: var(--paper); }
+.configuration-element-form .form-help { display: block; margin-top: 6px; color: var(--muted); font-size: 11px; font-weight: 400; line-height: 1.45; }
+.channel-parameter-section { display: grid; gap: 10px; padding-top: 18px; border-top: 1px solid var(--line); }
+.channel-parameter-section .drawer-section-heading { margin-bottom: 0; }
+.channel-parameter-section .drawer-section-heading h4 { margin-bottom: 4px; }
+.channel-parameter-section .drawer-section-heading small { display: block; max-width: 390px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+</style>

@@ -477,3 +477,46 @@ onMounted(load);
     </form>
   </AppDrawer>
 </template>
+
+<style scoped>
+.role-sidebar-heading, .role-config-heading, .role-config-actions, .role-save-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.role-sidebar-heading strong, .selection-count { color: var(--accent-dark); font: 600 11px 'DM Mono', monospace; }
+.role-config { min-width: 0; }
+.role-config-tabs { margin: 0 0 14px; }
+.role-config-actions { justify-content: flex-end; margin: -2px 0 10px; }
+.permission-tree { overflow: hidden; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.permission-tree-row, .permission-tree-unmatched { min-height: 36px; padding-left: calc(10px + var(--tree-depth, 0) * 22px); border-bottom: 1px solid var(--line); }
+.permission-tree-row:last-of-type { border-bottom: 0; }
+.permission-tree-row.nested { position: relative; }
+.permission-tree-row.nested::before { position: absolute; top: 0; bottom: 0; left: calc(16px + (var(--tree-depth, 0) - 1) * 22px); border-left: 1px solid var(--line); content: ""; }
+.permission-tree-label { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 36px; padding: 5px 10px 5px 0; color: inherit; font-size: 12px; cursor: pointer; }
+.permission-tree-label:hover { background: var(--accent-soft); }
+.permission-tree-label input { flex: 0 0 auto; width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
+.permission-tree-label > span:last-child { min-width: 0; }
+.permission-tree-label small { display: inline; margin-left: 8px; color: var(--muted-light); font: 10px 'DM Mono', monospace; }
+.tree-expand-btn, .tree-expand-spacer { display: inline-grid; place-items: center; width: 20px; height: 36px; flex: 0 0 20px; color: var(--muted); }
+.tree-expand-btn { border: 0; border-radius: 4px; background: transparent; cursor: pointer; }
+.tree-expand-btn:hover { color: var(--accent-dark); background: var(--accent-soft); }
+.permission-tree-unmatched { display: grid; padding: 8px 10px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.permission-tree-unmatched .permission-tree-label { padding-left: 20px; color: var(--ink-soft); font-weight: 400; }
+.permission-tree-create { max-height: 460px; overflow: auto; }
+.scope-option-list { display: grid; gap: 8px; }
+.scope-option { display: grid; grid-template-columns: 16px 22px minmax(0, 1fr) auto; align-items: center; min-height: 56px; gap: 10px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink-soft); background: var(--surface); cursor: pointer; transition: border-color .16s ease, background .16s ease; }
+.scope-option:hover { border-color: var(--accent); background: var(--accent-soft); }
+.scope-option.selected { border-color: var(--accent); color: var(--ink); background: var(--accent-soft); }
+.scope-option input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
+.scope-option > svg { color: var(--accent-dark); }
+.scope-option > span { min-width: 0; }
+.scope-option strong, .scope-option small { display: block; }
+.scope-option strong { font-size: 12px; font-weight: 600; }
+.scope-option small { margin-top: 2px; color: var(--muted-light); font-size: 11px; }
+.scope-option b { padding: 2px 5px; border: 1px solid var(--line-dark); border-radius: 4px; color: var(--muted); background: var(--surface-raised); font: 10px 'DM Mono', monospace; }
+.role-catalog-empty { min-height: 140px; margin: 0; border: 1px dashed var(--line-dark); border-radius: 8px; }
+.role-config-loading { min-height: 180px; }
+.role-save-bar { justify-content: flex-end; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.role-create-form { display: grid; gap: 20px; }
+.role-edit-form { display: grid; gap: 18px; }
+.role-create-selection { padding-top: 18px; border-top: 1px solid var(--line); }
+.role-create-selection h4 { margin: 0 0 12px; color: var(--ink); font-size: 13px; }
+.role-name-column { width: 38%; }.role-code-column { width: 38%; }
+</style>
