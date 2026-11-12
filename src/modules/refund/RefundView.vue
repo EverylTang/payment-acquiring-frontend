@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
+import { hasPermission } from "../../auth";
 import { createRefund, executeRefund, getRefund, type Refund } from "./api";
 import type { Order } from "../order/api";
-const props = defineProps<{ order: Order }>();
+const props = defineProps<{ order: Order; canCreate: boolean }>();
+const canReadRefund = computed(() => hasPermission("order:list"));
+const canManageRefund = computed(() => hasPermission("order:manage"));
 const emit = defineEmits<{ notice: [message: string] }>();
 const amount = ref(String(props.order.amount));
 const reason = ref("");
@@ -10,6 +13,8 @@ const refundId = ref("");
 const result = ref<Refund | null>(null);
 const loading = ref(false);
 const submit = async () => {
+  if (!canManageRefund.value || !props.canCreate || loading.value || props.order.status !== "SUCCESS") return;
+  if (!Number.isFinite(Number(amount.value)) || Number(amount.value) < 0.01 || !reason.value.trim()) return emit("notice", "请输入有效退款金额和退款原因");
   loading.value = true;
   try {
     result.value = await createRefund(
@@ -25,15 +30,15 @@ const submit = async () => {
   }
 };
 const query = async () => {
-  if (!refundId.value) return;
+  if (!canReadRefund.value || !refundId.value.trim()) return;
   try {
-    result.value = await getRefund(props.order.orderId, refundId.value);
+    result.value = await getRefund(props.order.orderId, refundId.value.trim());
   } catch (e) {
     emit("notice", e instanceof Error ? e.message : "退款查询失败");
   }
 };
 const execute = async () => {
-  if (!result.value) return;
+  if (!canManageRefund.value || loading.value || !result.value || !['CREATED', 'FAILED', 'UNKNOWN'].includes(result.value.status)) return;
   loading.value = true;
   try {
     result.value = await executeRefund(props.order.orderId, result.value.refundId);
@@ -53,7 +58,7 @@ const execute = async () => {
         <h4>订单退款</h4>
       </div>
     </div>
-    <div class="form-grid">
+    <div v-if="canManageRefund && canCreate" class="form-grid">
       <input
         v-model="amount"
         type="number"
@@ -68,7 +73,7 @@ const execute = async () => {
         提交退款
       </button>
     </div>
-    <div class="form-grid">
+    <div v-if="canReadRefund" class="form-grid">
       <input v-model="refundId" placeholder="退款 ID" /><button
         class="outline-btn"
         @click="query"
@@ -79,7 +84,7 @@ const execute = async () => {
     <div v-if="result" class="record-row">
       <strong>{{ result.refundId }}</strong
       ><span>{{ result.amount }} {{ result.currency }}</span
-      ><span class="status-badge" :class="'st-' + result.status.toLowerCase()">{{ result.status }}</span><button v-if="['CREATED', 'FAILED', 'UNKNOWN'].includes(result.status)" class="outline-btn" :disabled="loading" @click="execute">执行退款</button>
+      ><span class="status-badge" :class="'st-' + result.status.toLowerCase()">{{ result.status }}</span><button v-if="canManageRefund && ['CREATED', 'FAILED', 'UNKNOWN'].includes(result.status)" class="outline-btn" :disabled="loading" @click="execute">执行退款</button>
     </div>
   </section>
 </template>

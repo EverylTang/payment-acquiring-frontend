@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { Pencil, Plus, Save, Search, ShieldCheck, ToggleLeft, Trash2 } from "lucide-vue-next";
-import { changeMenuStatus, createMenu, createMenuPermission, createResourceType, deleteMenu, deleteMenuPermission, getMenuPermissions, getMenuResourceTypes, getMenus, getResourceTypes, updateMenu, updateMenuPermission, type AdminMenu, type MenuPermission, type ResourceType } from "./api";
+import { changeMenuStatus, createMenu, createMenuPermission, createResourceType, deleteMenu, deleteMenuPermission, getAllMenus, getMenuPermissions, getMenuResourceTypes, getMenus, getResourceTypes, updateMenu, updateMenuPermission, type AdminMenu, type MenuPermission, type ResourceType } from "./api";
 import AppDrawer from "../../components/AppDrawer.vue";
 import AppPagination from "../../components/AppPagination.vue";
 
@@ -29,7 +29,20 @@ const emptyResourceTypeForm = () => ({ resourceType: "", resourceName: "" });
 const menuForm = ref(emptyMenuForm());
 const permissionForm = ref(emptyPermissionForm());
 const resourceTypeForm = ref(emptyResourceTypeForm());
-const parentMenus = computed(() => menus.value.filter((menu) => menu.menuCode !== editingMenu.value?.menuCode));
+const parentCatalog = ref<AdminMenu[]>([]);
+const openingMenu = ref(false);
+const parentMenus = computed(() => {
+  const excluded = new Set<number>();
+  if (editingMenu.value) excluded.add(editingMenu.value.id);
+  // 排除自身及所有后代，避免把菜单移到自己的子树下形成环。
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const menu of parentCatalog.value) {
+      if (excluded.has(menu.parentId) && !excluded.has(menu.id)) { excluded.add(menu.id); changed = true; }
+    }
+  }
+  return parentCatalog.value.filter((menu) => !excluded.has(menu.id));
+});
 const permissionTitle = computed(() => editingPermission.value ? "编辑操作权限" : "新增操作权限");
 const builtinResourceTypeNames: Record<string, string> = {
   MENU: "菜单资源",
@@ -64,12 +77,22 @@ const resetFilters = () => {
   load(1);
 };
 const changePageSize = (pageSize: number) => { page.value.pageSize = pageSize; load(1); };
-const openCreateMenu = () => { editingMenu.value = null; menuForm.value = emptyMenuForm(); menuDrawerOpen.value = true; };
-const openEditMenu = async (menu: AdminMenu) => {
-  editingMenu.value = menu;
-  menuForm.value = { menuCode: menu.menuCode, menuName: menu.menuName, menuType: menu.menuType, parentMenuCode: menus.value.find((item) => item.id === menu.parentId)?.menuCode || "", routePath: menu.routePath || "", componentKey: menu.componentKey || "", icon: menu.icon || "", sortOrder: menu.sortOrder, visible: menu.visible, resourceTypes: await getMenuResourceTypes(menu.menuCode) };
-  menuDrawerOpen.value = true;
+const openMenu = async (menu: AdminMenu | null) => {
+  if (openingMenu.value) return;
+  openingMenu.value = true;
+  try {
+    const [catalog, types] = await Promise.all([getAllMenus(), menu ? getMenuResourceTypes(menu.menuCode) : Promise.resolve(["MENU"])]);
+    const parent = menu && menu.parentId !== 0 ? catalog.find((item) => item.id === menu.parentId) : undefined;
+    if (menu?.parentId && !parent) throw new Error("原父级菜单未找到，已阻止编辑以避免误改层级，请刷新后重试");
+    parentCatalog.value = catalog;
+    editingMenu.value = menu;
+    menuForm.value = menu ? { menuCode: menu.menuCode, menuName: menu.menuName, menuType: menu.menuType, parentMenuCode: parent?.menuCode || "", routePath: menu.routePath || "", componentKey: menu.componentKey || "", icon: menu.icon || "", sortOrder: menu.sortOrder, visible: menu.visible, resourceTypes: types } : emptyMenuForm();
+    menuDrawerOpen.value = true;
+  } catch (error) { emit("notice", error instanceof Error ? error.message : "菜单编辑数据加载失败"); }
+  finally { openingMenu.value = false; }
 };
+const openCreateMenu = () => openMenu(null);
+const openEditMenu = (menu: AdminMenu) => openMenu(menu);
 const closeMenuDrawer = () => { if (!saving.value) { menuDrawerOpen.value = false; editingMenu.value = null; menuForm.value = emptyMenuForm(); } };
 const openResourceTypeDrawer = () => { resourceTypeForm.value = emptyResourceTypeForm(); resourceTypeDrawerOpen.value = true; };
 const closeResourceTypeDrawer = () => { if (!resourceTypeSaving.value) { resourceTypeDrawerOpen.value = false; resourceTypeForm.value = emptyResourceTypeForm(); } };
@@ -86,6 +109,10 @@ const saveResourceType = async () => {
   finally { resourceTypeSaving.value = false; }
 };
 const saveMenu = async () => {
+  if (saving.value) return;
+  if (menuForm.value.parentMenuCode && !parentMenus.value.some((menu) => menu.menuCode === menuForm.value.parentMenuCode)) {
+    emit("notice", "请选择有效父级菜单，不能选择自身或子菜单"); return;
+  }
   saving.value = true;
   try {
     const payload = { ...menuForm.value, parentMenuCode: menuForm.value.parentMenuCode || undefined };

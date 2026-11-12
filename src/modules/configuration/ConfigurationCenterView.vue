@@ -55,7 +55,7 @@ const channelPage = ref({ current: 1, pageSize: 10, total: 0 });
 const routePage = ref({ current: 1, pageSize: 10, total: 0 });
 const pricingPage = ref({ current: 1, pageSize: 10, total: 0 });
 const policyPage = ref({ current: 1, pageSize: 10, total: 0 });
-const routingView = ref<"channels" | "routes">("channels");
+const routingView = ref<"channels" | "routes">(hasPermission("channel:list") ? "channels" : "routes");
 const drawer = ref<"config" | "route" | null>(null);
 const editingChannel = ref<Channel | null>(null);
 const editingRoute = ref<RoutingRule | null>(null);
@@ -150,61 +150,53 @@ const parseObject = (value: string, field: string) => {
 };
 const load = async () => {
   loading.value = true;
+  const failures: string[] = [];
+  // 各业务列表独立赋值，参考选项失败不能抹掉已经授权且成功加载的列表。
+  const tasks: Promise<void>[] = [];
+  const fetchSection = (permission: string, label: string, action: () => Promise<void>) => {
+    if (!hasPermission(permission)) return;
+    tasks.push(action().catch((error) => { failures.push(`${label}：${error instanceof Error ? error.message : "加载失败"}`); }));
+  };
   try {
-    const requests: Promise<unknown>[] = [getReleases({ page: 1, pageSize: 100 })];
-    if (props.section === "routing") requests.push(
-      getChannels({ page: channelPage.value.current, pageSize: channelPage.value.pageSize }),
-      getRoutingRules({ page: routePage.value.current, pageSize: routePage.value.pageSize }),
-      getProducts({ page: 1, pageSize: 100, status: "ACTIVE" }),
-      getMerchants({ page: 1, pageSize: 100, status: "ACTIVE" }),
-      getChannels({ page: 1, pageSize: 100 }),
-      getActiveCurrencies(),
-    );
-    if (props.section === "pricing") requests.push(
-      getPricingRules({ page: pricingPage.value.current, pageSize: pricingPage.value.pageSize }),
-      getProducts({ page: 1, pageSize: 100, status: "ACTIVE" }),
-      getMerchants({ page: 1, pageSize: 100, status: "ACTIVE" }),
-      getChannels({ page: 1, pageSize: 100 }),
-      getActiveCurrencies(),
-    );
-    if (props.section === "risk") requests.push(getRiskPolicies({ page: policyPage.value.current, pageSize: policyPage.value.pageSize }));
-    const values = await Promise.all(requests);
-    releases.value = (values[0] as { items: ConfigRelease[] }).items;
+    fetchSection("config-release:list", "版本选项", async () => { releases.value = (await getReleases({ page: 1, pageSize: 100 })).items; });
     if (props.section === "routing") {
-      const channelResult = values[1] as { items: Channel[]; page: number; pageSize: number; total: number };
-      const routeResult = values[2] as { items: RoutingRule[]; page: number; pageSize: number; total: number };
-      channels.value = channelResult.items;
-      routes.value = routeResult.items;
-      products.value = (values[3] as { items: Product[] }).items;
-      merchants.value = (values[4] as { items: Merchant[] }).items;
-      routeChannels.value = (values[5] as { items: Channel[] }).items.filter((item) => item.status === "ACTIVE");
-      currencies.value = values[6] as Currency[];
-      channelPage.value = { current: channelResult.page, pageSize: channelResult.pageSize, total: channelResult.total };
-      routePage.value = { current: routeResult.page, pageSize: routeResult.pageSize, total: routeResult.total };
+      fetchSection("channel:list", "渠道列表", async () => {
+        const result = await getChannels({ page: channelPage.value.current, pageSize: channelPage.value.pageSize });
+        channels.value = result.items;
+        channelPage.value = { current: result.page, pageSize: result.pageSize, total: result.total };
+      });
+      fetchSection("routing-rule:list", "路由规则", async () => {
+        const result = await getRoutingRules({ page: routePage.value.current, pageSize: routePage.value.pageSize });
+        routes.value = result.items;
+        routePage.value = { current: result.page, pageSize: result.pageSize, total: result.total };
+      });
     }
     if (props.section === "pricing") {
-      const pricingResult = values[1] as { items: PricingRule[]; page: number; pageSize: number; total: number };
-      const productResult = values[2] as { items: Product[] };
-      const merchantResult = values[3] as { items: Merchant[] };
-      const channelResult = values[4] as { items: Channel[] };
-      const currencyResult = values[5] as Currency[];
-      pricing.value = pricingResult.items;
-      pricingPage.value = { current: pricingResult.page, pageSize: pricingResult.pageSize, total: pricingResult.total };
-      products.value = productResult.items;
-      merchants.value = merchantResult.items;
-      channels.value = channelResult.items;
-      currencies.value = currencyResult;
+      fetchSection("pricing-rule:list", "费率规则", async () => {
+        const result = await getPricingRules({ page: pricingPage.value.current, pageSize: pricingPage.value.pageSize });
+        pricing.value = result.items;
+        pricingPage.value = { current: result.page, pageSize: result.pageSize, total: result.total };
+      });
     }
     if (props.section === "risk") {
-      const policyResult = values[1] as { items: RiskPolicy[]; page: number; pageSize: number; total: number };
-      policies.value = policyResult.items;
-      policyPage.value = { current: policyResult.page, pageSize: policyResult.pageSize, total: policyResult.total };
+      fetchSection("risk-policy:list", "风控策略", async () => {
+        const result = await getRiskPolicies({ page: policyPage.value.current, pageSize: policyPage.value.pageSize });
+        policies.value = result.items;
+        policyPage.value = { current: result.page, pageSize: result.pageSize, total: result.total };
+      });
+    } else {
+      fetchSection("product:list", "产品选项", async () => { products.value = (await getProducts({ page: 1, pageSize: 100, status: "ACTIVE" })).items; });
+      fetchSection("merchant:list", "商户选项", async () => { merchants.value = (await getMerchants({ page: 1, pageSize: 100, status: "ACTIVE" })).items; });
+      fetchSection("channel:list", "渠道选项", async () => {
+        const result = await getChannels({ page: 1, pageSize: 100 });
+        if (props.section === "routing") routeChannels.value = result.items.filter((item) => item.status === "ACTIVE");
+        else channels.value = result.items;
+      });
+      fetchSection("master-data:list", "币种选项", async () => { currencies.value = await getActiveCurrencies(); });
     }
-  } catch (error) {
-    emit("notice", error instanceof Error ? error.message : "运营配置加载失败");
-  } finally {
-    loading.value = false;
-  }
+    await Promise.all(tasks);
+    if (failures.length) emit("notice", failures.join("；"));
+  } finally { loading.value = false; }
 };
 const changePage = (kind: "channel" | "route" | "pricing" | "policy", current: number) => {
   const pages = { channel: channelPage, route: routePage, pricing: pricingPage, policy: policyPage };
@@ -432,8 +424,8 @@ onMounted(load);
         <article class="configuration-summary-card"><span>生效费率</span><strong>{{ activePricingRules }}</strong><small>当前页 {{ pricing.length }} 条规则</small></article>
       </div>
       <div v-if="section === 'routing'" class="workspace-tabs workspace-tabs-compact" role="tablist">
-        <button :class="{ active: routingView === 'channels' }" @click="routingView = 'channels'">渠道</button>
-        <button :class="{ active: routingView === 'routes' }" @click="routingView = 'routes'">路由规则</button>
+        <button v-if="hasPermission('channel:list')" :class="{ active: routingView === 'channels' }" @click="routingView = 'channels'">渠道</button>
+        <button v-if="hasPermission('routing-rule:list')" :class="{ active: routingView === 'routes' }" @click="routingView = 'routes'">路由规则</button>
       </div>
       <template v-if="section === 'routing' && routingView === 'channels'">
         <div class="section-heading"><div><span class="eyebrow">CHANNEL DIRECTORY</span><h4>渠道列表</h4></div><span>{{ channelPage.total }} 个渠道</span></div>

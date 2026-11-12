@@ -62,6 +62,16 @@ const editingRole = ref<AdminRole | null>(null);
 const editingRoleName = ref("");
 const updatingRole = ref(false);
 const expandedMenuCodes = ref<string[]>([]);
+const canCreateRole = computed(() => hasPermission("system:role:create"));
+const canEditRole = computed(() => hasPermission("system:role:update"));
+const canGrantRole = computed(() => hasPermission("system:role:permission:update"));
+const canEditScope = computed(() => hasPermission("system:data-scope:role:update"));
+const canReadAccess = computed(() => hasPermission("system:role:permission:list"));
+const canReadScope = computed(() => hasPermission("system:data-scope:role:list"));
+const canViewAccess = computed(() => canReadAccess.value || canGrantRole.value);
+const canViewScope = computed(() => canReadScope.value || canEditScope.value);
+const canEditActiveSection = computed(() => activeSection.value === "access" ? canGrantRole.value : canEditScope.value);
+const selectionError = ref("");
 const scopeOptions = [
   { code: "ALL", label: "全部商户数据", description: "可查看所有商户", icon: Globe2 },
   { code: "ASSIGNED", label: "已分配商户数据", description: "仅查看已分配商户", icon: UsersRound },
@@ -217,6 +227,7 @@ const resetNewRole = () => {
 };
 
 const openCreateDrawer = () => {
+  if (!canCreateRole.value) return;
   resetNewRole();
   createDrawerOpen.value = true;
 };
@@ -228,14 +239,17 @@ const closeCreateDrawer = () => {
 };
 
 const openEditRole = (role: AdminRole) => {
+  if (!canEditRole.value) return;
   editingRole.value = role;
   editingRoleName.value = role.roleName;
   roleEditDrawerOpen.value = true;
 };
 
-const openAuthorization = async (role: AdminRole) => {
-  await select(role.roleCode);
+const openAuthorization = async (role: AdminRole, section: Section) => {
+  if (section === "access" ? !canViewAccess.value : !canViewScope.value) return;
+  loadedSections.clear();
   authorizationDrawerOpen.value = true;
+  await select(role.roleCode, section);
 };
 
 const closeAuthorization = () => {
@@ -251,7 +265,7 @@ const closeEditRole = () => {
 };
 
 const saveRoleName = async () => {
-  if (!editingRole.value || !editingRoleName.value.trim()) return;
+  if (!canEditRole.value || updatingRole.value || !editingRole.value || !editingRoleName.value.trim()) return;
   updatingRole.value = true;
   try {
     const role = await updateRole(editingRole.value.roleCode, {
@@ -275,27 +289,25 @@ const load = async (current = page.value.current) => {
   loading.value = true;
   try {
     const [rolePage, value] = await Promise.all([
-      getRoles({ page: current, pageSize: page.value.pageSize, ...filters.value }),
-      getPermissionCatalog().catch((error: unknown) => {
-        catalogError.value = error instanceof Error ? error.message : "权限目录加载失败";
-        return null;
-      }),
+      hasPermission("system:role:list")
+        ? getRoles({ page: current, pageSize: page.value.pageSize, ...filters.value })
+        : Promise.resolve({ items: [] as AdminRole[], page: current, pageSize: page.value.pageSize, total: 0 }),
+      hasPermission("system:permission:list")
+        ? getPermissionCatalog().catch((error: unknown) => {
+          catalogError.value = error instanceof Error ? error.message : "权限目录加载失败";
+          return null;
+        })
+        : Promise.resolve(null),
     ]);
     roles.value = rolePage.items;
-    page.value = {
-      current: rolePage.page,
-      pageSize: rolePage.pageSize,
-      total: rolePage.total,
-    };
+    page.value = { current: rolePage.page, pageSize: rolePage.pageSize, total: rolePage.total };
     catalog.value = value;
     if (value) {
       catalogError.value = "";
       expandedMenuCodes.value = value.menus.map((menu) => menu.menuCode);
+    } else if (!hasPermission("system:permission:list")) {
+      catalogError.value = "缺少权限目录查看权限（system:permission:list）";
     }
-    const roleCode = roles.value.some((role) => role.roleCode === selectedRole.value)
-      ? selectedRole.value
-      : roles.value[0]?.roleCode;
-    await select(roleCode || "");
   } catch (error) {
     emit("notice", error instanceof Error ? error.message : "权限加载失败");
   } finally {
@@ -309,23 +321,38 @@ const resetFilters = () => {
 };
 const changePageSize = (pageSize: number) => { page.value.pageSize = pageSize; load(1); };
 
-const select = async (roleCode: string) => {
-  if (!roleCode || (roleCode === selectedRole.value && selectionLoading.value)) return;
+let selectionRequest = 0;
+const loadedSections = new Set<Section>();
+const select = async (roleCode: string, section: Section) => {
+  if (!roleCode || saving.value || (section === "access" ? !canViewAccess.value : !canViewScope.value)) return;
+  const request = ++selectionRequest;
+  if (selectedRole.value !== roleCode) loadedSections.clear();
   selectedRole.value = roleCode;
+  activeSection.value = section;
+  selectionError.value = "";
+  selectionLoading.value = false;
+  if (loadedSections.has(section)) return;
+  if (section === "access") { menus.value = []; permissions.value = []; }
+  else scopeTypes.value = [];
   selectionLoading.value = true;
   try {
-    const [value, scope] = await Promise.all([
-      getRolePermissions(roleCode),
-      getRoleDataScope(roleCode),
-    ]);
-    if (selectedRole.value !== roleCode) return;
-    menus.value = value.menuCodes;
-    permissions.value = value.permissionCodes;
-    scopeTypes.value = scope.scopeTypes;
+    if (section === "access" && canReadAccess.value) {
+      const value = await getRolePermissions(roleCode);
+      if (request !== selectionRequest) return;
+      menus.value = value.menuCodes;
+      permissions.value = value.permissionCodes;
+    } else if (section === "scope" && canReadScope.value) {
+      const scope = await getRoleDataScope(roleCode);
+      if (request !== selectionRequest) return;
+      scopeTypes.value = scope.scopeTypes;
+    }
+    if (request === selectionRequest) loadedSections.add(section);
   } catch (error) {
-    emit("notice", error instanceof Error ? error.message : "角色配置加载失败");
+    if (request !== selectionRequest) return;
+    selectionError.value = error instanceof Error ? error.message : "角色配置加载失败";
+    emit("notice", selectionError.value);
   } finally {
-    if (selectedRole.value === roleCode) selectionLoading.value = false;
+    if (request === selectionRequest) selectionLoading.value = false;
   }
 };
 
@@ -364,9 +391,10 @@ const updateNewRoleScope = (scope: string) => {
 };
 
 const create = async () => {
+  if (!canCreateRole.value || creating.value || !newRole.value.roleCode.trim() || !newRole.value.roleName.trim() || !newRole.value.scopeTypes.length) return;
   creating.value = true;
   try {
-    const role = await createRole({
+    await createRole({
       ...newRole.value,
       roleCode: newRole.value.roleCode.trim().toUpperCase(),
       roleName: newRole.value.roleName.trim(),
@@ -374,7 +402,6 @@ const create = async () => {
     createDrawerOpen.value = false;
     resetNewRole();
     await load(1);
-    await select(role.roleCode);
     emit("notice", "角色已创建并完成初始授权");
   } catch (error) {
     emit("notice", error instanceof Error ? error.message : "角色创建失败");
@@ -384,7 +411,10 @@ const create = async () => {
 };
 
 const save = async () => {
-  if (!selectedRole.value) return;
+  if (!selectedRole.value || !canEditActiveSection.value || saving.value || selectionLoading.value || selectionError.value) return;
+  if (activeSection.value === "access" && !catalog.value) return emit("notice", catalogError.value || "权限目录尚未加载");
+  const canRead = activeSection.value === "access" ? canReadAccess.value : canReadScope.value;
+  if (!canRead && !window.confirm("当前账号不能读取原配置，本次保存将完整替换该项配置。确认继续？")) return;
   saving.value = true;
   try {
     if (activeSection.value === "scope") {
@@ -415,28 +445,32 @@ onMounted(load);
         <label class="management-form-item"><span>角色名称</span><div class="management-input"><Search :size="16" /><input v-model="filters.roleName" placeholder="输入角色名称" /></div></label>
         <label class="management-form-item"><span>角色编码</span><input v-model="filters.roleCode" placeholder="输入角色编码" /></label>
       </div>
-      <div class="management-filter-actions"><button class="outline-btn" type="button" @click="resetFilters">重置</button><button class="primary-btn" type="submit"><Search :size="16" />查询</button><button v-if="hasPermission('system:role:update')" class="primary-btn" type="button" @click="openCreateDrawer"><Plus :size="16" />新增角色</button></div>
+      <div class="management-filter-actions"><button class="outline-btn" type="button" @click="resetFilters">重置</button><button class="primary-btn" type="submit"><Search :size="16" />查询</button><button v-if="canCreateRole" class="primary-btn" type="button" @click="openCreateDrawer"><Plus :size="16" />新增角色</button></div>
     </form>
     <div class="management-list-summary"><span>角色列表</span><small>共 {{ page.total }} 个角色</small></div>
 
     <div v-if="loading" class="empty"><LoaderCircle class="spin" :size="22" />加载中…</div>
-    <div v-else class="table-wrap management-table-wrap"><table class="data-table role-table"><colgroup><col class="role-name-column" /><col class="role-code-column" /><col class="management-actions-column" /></colgroup><thead><tr><th>角色名称</th><th>角色编码</th><th class="actions">操作</th></tr></thead><tbody><tr v-for="role in roles" :key="role.roleCode"><td><strong>{{ role.roleName }}</strong></td><td><span class="mono">{{ role.roleCode }}</span></td><td class="actions"><div class="management-row-actions"><button v-if="hasPermission('system:role:update')" class="outline-btn" type="button" @click="openAuthorization(role)"><ShieldCheck :size="16" />授权</button><button v-if="hasPermission('system:role:update')" class="outline-btn" type="button" @click="openEditRole(role)"><Pencil :size="15" />编辑</button></div></td></tr><tr v-if="!roles.length"><td colspan="3" class="empty">暂无符合条件的角色</td></tr></tbody></table></div>
+    <div v-else class="table-wrap management-table-wrap"><table class="data-table role-table"><colgroup><col class="role-name-column" /><col class="role-code-column" /><col class="management-actions-column" /></colgroup><thead><tr><th>角色名称</th><th>角色编码</th><th class="actions">操作</th></tr></thead><tbody><tr v-for="role in roles" :key="role.roleCode"><td><strong>{{ role.roleName }}</strong></td><td><span class="mono">{{ role.roleCode }}</span></td><td class="actions"><div class="management-row-actions"><button v-if="canViewAccess" class="outline-btn" type="button" @click="openAuthorization(role, 'access')"><ShieldCheck :size="16" />{{ canGrantRole ? '授权' : '查看权限' }}</button><button v-if="canViewScope" class="outline-btn" type="button" @click="openAuthorization(role, 'scope')"><Globe2 :size="16" />数据范围</button><button v-if="canEditRole" class="outline-btn" type="button" @click="openEditRole(role)"><Pencil :size="15" />编辑</button></div></td></tr><tr v-if="!roles.length"><td colspan="3" class="empty">暂无符合条件的角色</td></tr></tbody></table></div>
     <AppPagination :page="page.current" :page-size="page.pageSize" :total="page.total" @change="load" @size-change="changePageSize" />
   </section>
   <AppDrawer v-if="authorizationDrawerOpen && selectedRoleDetail" title="角色授权" :description="`${selectedRoleDetail.roleName} · ${selectedRoleDetail.roleCode}`" @close="closeAuthorization">
     <section class="drawer-section role-authorization" aria-live="polite">
-      <div class="workspace-tabs role-config-tabs" role="tablist" aria-label="角色配置项"><button :class="{ active: activeSection === 'access' }" role="tab" :aria-selected="activeSection === 'access'" @click="activeSection = 'access'">菜单与操作权限</button><button :class="{ active: activeSection === 'scope' }" role="tab" :aria-selected="activeSection === 'scope'" @click="activeSection = 'scope'">数据范围</button></div>
+      <div class="workspace-tabs role-config-tabs" role="tablist" aria-label="角色配置项"><button v-if="canViewAccess" :class="{ active: activeSection === 'access' }" role="tab" :aria-selected="activeSection === 'access'" :disabled="saving" @click="select(selectedRole, 'access')">菜单与操作权限</button><button v-if="canViewScope" :class="{ active: activeSection === 'scope' }" role="tab" :aria-selected="activeSection === 'scope'" :disabled="saving" @click="select(selectedRole, 'scope')">数据范围</button></div>
       <div v-if="selectionLoading" class="empty role-config-loading"><LoaderCircle class="spin" :size="20" />加载角色配置…</div>
       <template v-else>
+        <p v-if="selectionError" class="drawer-copy">{{ selectionError }}，请重新打开配置后重试。</p>
+        <p v-else-if="activeSection === 'access' ? !canReadAccess : !canReadScope" class="drawer-copy">当前账号无原配置查看权限，可重新选择并完整替换配置，保存前需确认。</p>
+        <fieldset class="role-config-fields" :disabled="!canEditActiveSection || saving || !!selectionError">
         <div class="role-config-actions"><span class="selection-count">已选 {{ selectedCount }} 项</span><div class="button-row"><button class="outline-btn action-btn" type="button" title="全选" @click="selectAll"><CheckCheck :size="15" />全选</button><button class="outline-btn action-btn" type="button" title="清空选择" @click="clearSelection"><Eraser :size="15" />清空</button></div></div>
         <div v-if="activeSection === 'access' && catalog?.menus.length" class="permission-tree" role="tree" aria-label="菜单与操作权限"><div v-for="row in permissionRows" :key="row.kind === 'permission' ? row.permission.permissionCode : row.node.menuCode" class="permission-tree-row" :class="[`permission-tree-${row.kind === 'permission' ? 'permission' : 'menu'}`, { nested: row.depth > 0 }]" :style="{ '--tree-depth': row.depth }" role="treeitem"><template v-if="row.kind !== 'permission'"><button v-if="row.node.children.length || row.node.permissions.length" class="tree-expand-btn" type="button" :title="isExpanded(row.node) ? '收起节点' : '展开节点'" @click="toggleExpanded(row.node)"><ChevronDown v-if="isExpanded(row.node)" :size="15" /><ChevronRight v-else :size="15" /></button><span v-else class="tree-expand-spacer"></span><label class="permission-tree-label"><input type="checkbox" :checked="isAccessNodeChecked(row.node, menus, permissions)" :indeterminate="isAccessNodeIndeterminate(row.node, menus, permissions)" @change="toggleAccessNode(row.node)" /><span>{{ row.node.menuName }}<small>{{ row.node.menuCode }}</small></span></label></template><label v-else class="permission-tree-label"><span class="tree-expand-spacer"></span><input v-model="permissions" type="checkbox" :value="row.permission.permissionCode" /><span>{{ row.permission.permissionName }}<small>{{ row.permission.permissionCode }}</small></span></label></div><div v-if="unmatchedPermissions.length" class="permission-tree-unmatched"><span>未归类操作</span><label v-for="permission in unmatchedPermissions" :key="permission.permissionCode" class="permission-tree-label"><span class="tree-expand-spacer"></span><input v-model="permissions" type="checkbox" :value="permission.permissionCode" /><span>{{ permission.permissionName }}<small>{{ permission.permissionCode }}</small></span></label></div></div>
         <div v-else-if="activeSection === 'scope'" class="scope-option-list" role="group" aria-label="数据范围"><label v-for="option in scopeOptions" :key="option.code" class="scope-option" :class="{ selected: scopeTypes.includes(option.code) }"><input v-model="scopeTypes" type="checkbox" :value="option.code" @change="updateScope(option.code)" /><component :is="option.icon" :size="18" /><span><strong>{{ option.label }}</strong><small>{{ option.description }}</small></span><b>{{ option.code }}</b></label></div>
         <div v-else class="empty role-catalog-empty">{{ catalogError || '暂无可授权菜单与操作权限' }}</div>
-        <div v-if="hasPermission('system:role:update')" class="role-save-bar"><button class="primary-btn" :disabled="saving" @click="save"><Save :size="16" />{{ saveLabel }}</button></div>
+        </fieldset>
+        <div v-if="canEditActiveSection" class="role-save-bar"><button class="primary-btn" :disabled="saving || !!selectionError || (activeSection === 'access' && !catalog)" @click="save"><Save :size="16" />{{ saveLabel }}</button></div>
       </template>
     </section>
   </AppDrawer>
-  <AppDrawer v-if="createDrawerOpen" title="新增角色" description="ROLE" @close="closeCreateDrawer">
+  <AppDrawer v-if="createDrawerOpen && canCreateRole" title="新增角色" description="ROLE" @close="closeCreateDrawer">
     <form class="drawer-section role-create-form" @submit.prevent="create">
       <div class="form-grid role-form-fields">
         <label class="form-field"><span>角色编码</span><input v-model="newRole.roleCode" maxlength="64" placeholder="例如 RISK_REVIEWER" /></label>
@@ -469,7 +503,7 @@ onMounted(load);
       <button class="primary-btn drawer-submit" type="submit" :disabled="creating || !newRole.roleCode.trim() || !newRole.roleName.trim() || !newRole.scopeTypes.length"><Save :size="16" />创建并授权</button>
     </form>
   </AppDrawer>
-  <AppDrawer v-if="roleEditDrawerOpen && editingRole" title="编辑角色" :description="editingRole.roleCode" @close="closeEditRole">
+  <AppDrawer v-if="roleEditDrawerOpen && editingRole && canEditRole" title="编辑角色" :description="editingRole.roleCode" @close="closeEditRole">
     <form class="drawer-section role-edit-form" @submit.prevent="saveRoleName">
       <label class="form-field"><span>角色编码</span><input :value="editingRole.roleCode" disabled /></label>
       <label class="form-field"><span>角色名称</span><input v-model="editingRoleName" maxlength="128" placeholder="请输入角色名称" /></label>
@@ -481,6 +515,7 @@ onMounted(load);
 <style scoped>
 .role-sidebar-heading, .role-config-heading, .role-config-actions, .role-save-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .role-sidebar-heading strong, .selection-count { color: var(--accent-dark); font: 600 11px 'DM Mono', monospace; }
+.role-config-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
 .role-config { min-width: 0; }
 .role-config-tabs { margin: 0 0 14px; }
 .role-config-actions { justify-content: flex-end; margin: -2px 0 10px; }

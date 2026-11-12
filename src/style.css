@@ -74,7 +74,8 @@ body {
 button, input, select { font: inherit; }
 button { border: 0; color: inherit; cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .45; }
-input, select {
+/* 原生表单外观不作用于 Element Plus 内部 input；:where 避免抬高优先级覆盖组件自身尺寸。 */
+input:where(:not(.el-input__inner, .el-select__input, .el-range-input, [type="checkbox"], [type="radio"])), select {
   width: 100%;
   height: 42px;
   border: 1px solid var(--line-dark);
@@ -88,8 +89,8 @@ input, select {
 textarea { width: 100%; min-height: 96px; resize: vertical; border: 1px solid var(--line-dark); border-radius: 6px; outline: none; color: var(--ink); background: var(--inset-field); padding: 10px 13px; }
 textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(8,145,178,.15); }
 input::placeholder { color: var(--muted-light); }
-input:hover, select:hover { border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
-input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent), 0 0 16px color-mix(in srgb, var(--accent) 12%, transparent); }
+input:where(:not(.el-input__inner, .el-select__input, .el-range-input)):hover, select:hover { border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+input:where(:not(.el-input__inner, .el-select__input, .el-range-input)):focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent), 0 0 16px color-mix(in srgb, var(--accent) 12%, transparent); }
 select option { background: var(--inset-field); color: var(--ink); }
 pre {
   max-height: 240px;
@@ -145,9 +146,9 @@ aside {
 .workspace small { margin-top: 5px; color: var(--muted); font: 10px 'DM Mono', monospace; }
 .eyebrow { color: var(--accent); font: 500 10px 'DM Mono', monospace; letter-spacing: 1.35px; text-transform: uppercase; opacity: .75; }
 aside .eyebrow { color: var(--muted-light); opacity: 1; }
-nav { display: grid; gap: 4px; }
+aside > nav { display: grid; gap: 4px; }
 aside > nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 4px; }
-nav button {
+aside > nav button {
   position: relative;
   display: flex;
   align-items: center;
@@ -162,10 +163,10 @@ nav button {
   text-align: left;
   transition: color .18s ease, background .18s ease, transform .18s ease, box-shadow .18s ease;
 }
-nav button:hover { color: var(--ink); background: color-mix(in srgb, var(--accent) 6%, transparent); transform: translateX(2px); }
-nav button.active { color: var(--accent-dark); background: color-mix(in srgb, var(--accent) 10%, transparent); border-color: color-mix(in srgb, var(--accent) 30%, transparent); box-shadow: inset 0 0 18px color-mix(in srgb, var(--accent) 6%, transparent), 0 0 14px color-mix(in srgb, var(--accent) 10%, transparent); }
-nav button.active::before { position: absolute; left: -19px; width: 3px; height: 22px; content: ''; background: var(--accent); box-shadow: 0 0 10px var(--accent); border-radius: 2px; }
-nav button.active svg { color: var(--accent); filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 70%, transparent)); }
+aside > nav button:hover { color: var(--ink); background: color-mix(in srgb, var(--accent) 6%, transparent); transform: translateX(2px); }
+aside > nav button.active { color: var(--accent-dark); background: color-mix(in srgb, var(--accent) 10%, transparent); border-color: color-mix(in srgb, var(--accent) 30%, transparent); box-shadow: inset 0 0 18px color-mix(in srgb, var(--accent) 6%, transparent), 0 0 14px color-mix(in srgb, var(--accent) 10%, transparent); }
+aside > nav button.active::before { position: absolute; left: -19px; width: 3px; height: 22px; content: ''; background: var(--accent); box-shadow: 0 0 10px var(--accent); border-radius: 2px; }
+aside > nav button.active svg { color: var(--accent); filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 70%, transparent)); }
 .operator { display: flex; align-items: center; gap: 11px; margin-top: auto; padding: 18px 9px 0; border-top: 1px solid var(--sidebar-line); }
 .operator strong { display: block; color: var(--ink); font-size: 12px; font-weight: 600; }
 .avatar { display: grid; flex: 0 0 auto; place-items: center; width: 34px; height: 34px; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius: 50%; color: var(--accent-dark); background: color-mix(in srgb, var(--accent) 8%, transparent); font: 500 10px 'DM Mono', monospace; box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 15%, transparent); }
@@ -340,12 +341,12 @@ button.record-row:hover { padding-left: 20px; background: color-mix(in srgb, var
   aside { position: sticky; width: 100%; height: auto; padding: 12px 18px 0; overflow: visible; }
   .brand { padding: 0 0 12px; }
   .brand small, .workspace, .operator { display: none; }
-  nav { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+  aside > nav { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
   aside > nav { flex: none; min-height: auto; overflow-y: visible; padding-right: 0; }
-  nav::-webkit-scrollbar { display: none; }
-  nav button { flex: 0 0 auto; width: auto; padding: 10px 11px 12px; border-radius: 0; white-space: nowrap; }
-  nav button.active { border-color: transparent; background: transparent; box-shadow: none; }
-  nav button.active::before { inset: auto 10px -1px; width: auto; height: 2px; }
+  aside > nav::-webkit-scrollbar { display: none; }
+  aside > nav button { flex: 0 0 auto; width: auto; padding: 10px 11px 12px; border-radius: 0; white-space: nowrap; }
+  aside > nav button.active { border-color: transparent; background: transparent; box-shadow: none; }
+  aside > nav button.active::before { inset: auto 10px -1px; width: auto; height: 2px; }
   main { padding: 0 20px 40px; }
   header { min-height: 82px; }
   .header-actions .live { display: none; }
@@ -516,13 +517,14 @@ button.record-row:hover { padding-left: 20px; background: color-mix(in srgb, var
   --inset-field: #ffffff;          /* 输入域背景 */
   --info: #2563eb;                 /* 信息蓝(图标块等) */
   --surface-raised: var(--paper);
+  --accent-contrast: #ffffff;
 }
 
 #app { min-height: 100vh; }
 body { background: var(--canvas); }
 body, button, input, select { letter-spacing: 0; }
 
-input, select {
+input:where(:not(.el-input__inner, .el-select__input, .el-range-input, [type="checkbox"], [type="radio"])), select {
   height: 38px;
   border-color: var(--line-dark);
   border-radius: 6px;
@@ -530,8 +532,8 @@ input, select {
   background: var(--paper);
   font-size: 13px;
 }
-input:hover, select:hover { border-color: var(--line-dark); }
-input:focus, select:focus {
+input:where(:not(.el-input__inner, .el-select__input, .el-range-input)):hover, select:hover { border-color: var(--line-dark); }
+input:where(:not(.el-input__inner, .el-select__input, .el-range-input)):focus, select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent);
 }
@@ -626,7 +628,7 @@ aside .eyebrow, .eyebrow { color: var(--muted); font-family: Inter, "Noto Sans S
 aside > nav { padding-right: 3px; }
 .nav-group { gap: 2px; margin-bottom: 16px; }
 .nav-group-label { padding: 0 10px 6px; color: var(--muted-light); font-size: 10px; letter-spacing: .7px; }
-nav button {
+aside > nav button {
   gap: 10px;
   min-height: 36px;
   padding: 8px 10px;
@@ -635,10 +637,10 @@ nav button {
   font-size: 13px;
   transition: color .14s ease, background .14s ease;
 }
-nav button:hover { color: var(--ink); background: var(--row-hover); transform: none; }
-nav button.active { border-color: transparent; color: var(--accent-dark); background: var(--accent-soft); box-shadow: none; }
-nav button.active::before { display: none; }
-nav button.active svg { color: var(--accent-dark); filter: none; }
+aside > nav button:hover { color: var(--ink); background: var(--row-hover); transform: none; }
+aside > nav button.active { border-color: transparent; color: var(--accent-dark); background: var(--accent-soft); box-shadow: none; }
+aside > nav button.active::before { display: none; }
+aside > nav button.active svg { color: var(--accent-dark); filter: none; }
 .operator { margin: 12px 4px 0; padding: 14px 6px 0; border-top-color: var(--sidebar-line); }
 .operator strong { color: var(--ink); }
 .avatar {
@@ -790,7 +792,7 @@ button.record-row:hover, .record-row:hover { padding-left: 12px; background: var
   aside { padding-inline: 12px; }
   aside > nav { background: var(--paper); }
   main { padding-inline: 20px; }
-  nav button { min-height: 40px; }
+  aside > nav button { min-height: 40px; }
 }
 
 @media (max-width: 560px) {
@@ -824,24 +826,24 @@ aside > nav::-webkit-scrollbar-thumb { border-radius: 99px; background: var(--li
   font-weight: 600;
   letter-spacing: .65px;
 }
-nav button {
+aside > nav button {
   min-height: 38px;
   padding: 9px 10px;
   border: 1px solid transparent;
   color: var(--muted);
 }
-nav button svg { flex: 0 0 auto; color: var(--muted-light); }
-nav button:hover {
+aside > nav button svg { flex: 0 0 auto; color: var(--muted-light); }
+aside > nav button:hover {
   color: var(--ink);
   background: var(--row-hover);
 }
-nav button:hover svg { color: var(--accent-dark); }
-nav button.active {
+aside > nav button:hover svg { color: var(--accent-dark); }
+aside > nav button.active {
   position: relative;
   color: var(--accent-dark);
   background: var(--accent-soft);
 }
-nav button.active::before {
+aside > nav button.active::before {
   display: block;
   left: 0;
   width: 3px;
@@ -1094,14 +1096,14 @@ header { min-height: 60px; }
 aside > nav { display: grid; align-content: start; gap: 6px; }
 .nav-group { display: grid; gap: 3px; margin: 0; }
 .nav-group + .nav-group { margin: 0; padding-top: 10px; border-top-color: var(--line); }
-nav .nav-directory {
+aside > nav .nav-directory {
   color: var(--ink);
   background: var(--surface-2);
   font-weight: 600;
 }
-nav .nav-directory:hover { color: var(--ink); background: var(--row-hover); }
-nav .nav-directory.active { color: var(--accent-dark); background: var(--accent-soft); }
-nav .nav-directory.active::before { display: none; }
+aside > nav .nav-directory:hover { color: var(--ink); background: var(--row-hover); }
+aside > nav .nav-directory.active { color: var(--accent-dark); background: var(--accent-soft); }
+aside > nav .nav-directory.active::before { display: none; }
 .nav-directory > span { flex: 1 1 auto; }
 .nav-chevron { flex: 0 0 auto; color: var(--muted-light); transition: transform .16s ease; }
 .nav-chevron.open { transform: rotate(180deg); }
@@ -1112,16 +1114,16 @@ nav .nav-directory.active::before { display: none; }
   padding-left: 7px;
   border-left: 1px solid var(--line);
 }
-nav .nav-child {
+aside > nav .nav-child {
   min-height: 34px;
   padding: 7px 9px;
   color: var(--muted);
   font-size: 12px;
 }
-nav .nav-child svg { color: var(--muted-light); }
-nav .nav-child:hover { color: var(--ink); background: var(--row-hover); }
-nav .nav-child.active { color: var(--accent-dark); background: var(--accent-soft); }
-nav .nav-child.active::before { display: none; }
+aside > nav .nav-child svg { color: var(--muted-light); }
+aside > nav .nav-child:hover { color: var(--ink); background: var(--row-hover); }
+aside > nav .nav-child.active { color: var(--accent-dark); background: var(--accent-soft); }
+aside > nav .nav-child.active::before { display: none; }
 
 /* Account controls and retained visual preferences. */
 :root[data-theme="indigo"] {
@@ -1149,6 +1151,7 @@ nav .nav-child.active::before { display: none; }
   --surface: #101a28;
   --canvas: #070d16;
   --accent: #20c9f3;
+  --accent-contrast: #070d16;
   --accent-dark: #8aeaff;
   --accent-soft: rgba(32, 201, 243, .14);
   --line: rgba(157, 190, 222, .16);
@@ -1164,14 +1167,14 @@ nav .nav-child.active::before { display: none; }
   --inset-field: #0b1522;
   --info: #6db3ff;
 }
-input:hover, select:hover { border-color: color-mix(in srgb, var(--accent) 40%, #ffffff); }
-input:focus, select:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
-nav button:hover svg { color: var(--accent-dark); }
-nav button.active, nav .nav-directory.active, nav .nav-child.active {
+input:where(:not(.el-input__inner, .el-select__input, .el-range-input)):hover, select:hover { border-color: color-mix(in srgb, var(--accent) 40%, #ffffff); }
+input:where(:not(.el-input__inner, .el-select__input, .el-range-input)):focus, select:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
+aside > nav button:hover svg { color: var(--accent-dark); }
+aside > nav button.active, aside > nav .nav-directory.active, aside > nav .nav-child.active {
   color: var(--accent-dark);
   background: var(--accent-soft);
 }
-nav button.active::before { background: var(--accent); }
+aside > nav button.active::before { background: var(--accent); }
 
 .account-area {
   position: relative;
@@ -1261,10 +1264,10 @@ nav button.active::before { background: var(--accent); }
 @media (max-width: 820px) {
   aside > nav { display: flex; align-items: center; gap: 4px; }
   .nav-group, .nav-group + .nav-group { display: flex; align-items: center; gap: 2px; margin: 0; padding: 0; border: 0; }
-  nav .nav-directory { flex: 0 0 auto; }
+  aside > nav .nav-directory { flex: 0 0 auto; }
   .nav-directory > span { flex: 0 0 auto; }
   .nav-children { display: flex; align-items: center; gap: 2px; margin: 0; padding: 0; border: 0; }
-  nav .nav-child { flex: 0 0 auto; min-height: 40px; padding: 10px 11px 12px; }
+  aside > nav .nav-child { flex: 0 0 auto; min-height: 40px; padding: 10px 11px 12px; }
 }
 
 /* Unified Element-style management surfaces. Page titles are represented by navigation and breadcrumbs. */
@@ -1328,9 +1331,10 @@ nav button.active::before { background: var(--accent); }
 .management-filter-fields-compact { grid-template-columns: repeat(2, minmax(145px, 220px)); }
 .management-form-item { display: grid; min-width: 0; gap: 7px; }
 .management-form-item > span { color: var(--ink-soft); font-size: 13px; line-height: 20px; }
-.management-form-item input, .management-form-item select { width: 100%; min-width: 0; height: 32px; padding: 0 11px; border: 1px solid var(--line-dark); border-radius: 4px; color: var(--ink-soft); background: var(--inset-field); font: inherit; font-size: 13px; outline: none; transition: border-color .15s, box-shadow .15s; }
-.management-form-item .el-select, .form-field .el-select { width: 100%; }
-.management-form-item input:focus, .management-form-item select:focus, .management-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent); }
+.management-form-item input:where(:not(.el-input__inner, .el-select__input, .el-range-input)), .management-form-item select { width: 100%; min-width: 0; height: 32px; padding: 0 11px; border: 1px solid var(--line-dark); border-radius: 4px; color: var(--ink-soft); background: var(--inset-field); font: inherit; font-size: 13px; outline: none; transition: border-color .15s, box-shadow .15s; }
+.management-form-item .el-select, .form-field .el-select,
+.management-form-item .el-date-editor.el-input__wrapper, .form-field .el-date-editor.el-input__wrapper { width: 100%; min-width: 0; }
+.management-form-item input:where(:not(.el-input__inner, .el-select__input, .el-range-input)):focus, .management-form-item select:focus, .management-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent); }
 .management-input { display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px; border: 1px solid var(--line-dark); border-radius: 4px; color: var(--muted); background: var(--inset-field); transition: border-color .15s, box-shadow .15s; }
 .management-input input { height: 30px; padding: 0; border: 0; box-shadow: none; }
 .management-filter-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }

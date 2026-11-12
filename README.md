@@ -83,7 +83,30 @@ npm run dev
 
 当前前端已接入登录与会话恢复、动态菜单、用户/角色/数据范围、菜单、商户及联系人凭证、产品和产品能力、商户产品、渠道/路由/费率/风控配置发布、订单与退款(创建/执行/回调查询)、商户资金账户与账务流水、结算规则与批次、对账、死信重投和运营审计等真实 API;401 会话过期会明确提示重新登录。
 
-当前仍为单页控制台(无 vue-router,菜单驱动的组件映射导航)。跨页全局筛选依赖后端补充查询接口;前端尚无组件与端到端测试框架(验证仅 typecheck + lint + build)。中英切换目前是 `preferences.ts` 的 DOM 级文本替换,属临时方案,待重构为正规 i18n。
+当前仍为单页控制台(无 vue-router,菜单驱动的组件映射导航)。跨页全局筛选依赖后端补充查询接口；现有浏览器回归覆盖公共分页与表单布局，尚不等同于完整业务端到端验收。中英切换目前是 `preferences.ts` 的 DOM 级文本替换,属临时方案,待重构为正规 i18n。
+
+## 公共 UI 浏览器回归
+
+先启动 `npm run dev`，再使用本机已有的 Playwright 和对应 Chromium 运行：
+
+```bash
+# Playwright 已可从本项目解析时
+npm run test:ui
+
+# 复用其他工具环境中的 Playwright，不向应用运行时添加依赖
+PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs npm run test:ui
+
+# 可选：指定开发服务器和截图输出目录
+ADMIN_UI_URL=http://127.0.0.1:5173 ADMIN_UI_SCREENSHOTS=/tmp/payment-ui-shots \
+PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs npm run test:ui
+```
+
+测试使用浏览器拦截的临时页面加载真实 Vue 组件和项目 CSS，使用合成数据，不需要管理员密码，不连接业务接口。包含两组回归：
+
+- `tests/admin-ui.test.mjs`：翻页、每页条数、页码跳转、空列表、首尾页码窗口、Element Plus 输入/下拉/日期控件、320–1440px 响应式布局及暗色主题。
+- `tests/admin-workflows.test.mjs`：菜单父级跨页解析、参考数据失败隔离、现有币种关联、风控时区转换，以及商户/产品部分保存后的重试、一次性凭证交付、角色分权和退款/结算只读查询。所有 API 请求均被拦截，未声明的请求会使测试失败，写入不会发送到真实后端。
+
+测试保持 Chromium 沙箱开启；Playwright 和浏览器需事先安装，本命令不会自动下载。这些回归不替代真实后端权限验收或退款、结算、发布等业务端到端验收。
 
 ## Git 上传
 

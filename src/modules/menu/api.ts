@@ -27,6 +27,18 @@ export const getMenus = (params: MenuListParams = {}) => {
   (["menuName", "menuCode", "menuType", "status"] as const).forEach((key) => { if (params[key]) query.set(key, params[key]); });
   return request<{ items: AdminMenu[]; page: number; pageSize: number; total: number }>(`/admin/v1/menus?${query}`);
 };
+// 父级选项必须独立于当前列表的筛选与分页，并遵循后端每页 100 条上限。
+export const getAllMenus = async () => {
+  const items: AdminMenu[] = [];
+  let current = 1;
+  while (true) {
+    const result = await getMenus({ page: current, pageSize: 100 });
+    items.push(...result.items);
+    if (items.length >= result.total) return items;
+    if (!result.items.length) throw new Error("菜单目录加载不完整，请刷新后重试");
+    current += 1;
+  }
+};
 export const createMenu = (payload: Omit<AdminMenu, "id" | "parentId" | "status"> & { parentMenuCode?: string }) =>
   request<AdminMenu>("/admin/v1/menus", {
     method: "POST",

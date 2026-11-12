@@ -24,8 +24,10 @@ export type MerchantProfile = {
   updatedAt?: string;
 };
 export type MerchantContact = { id: number; merchantId: string; contactType: string; contactName: string; email?: string; phone?: string; notifyEnabled: boolean; createdAt?: string; updatedAt?: string };
-export type MerchantCredential = { credentialId: string; merchantId: string; credentialType: string; secretHint: string; status: string; createdAt?: string; rotatedAt?: string; revokedAt?: string };
-export type RotatedCredential = { credentialId: string; credentialType: string; secret: string; createdAt: string };
+export type MerchantCredentialType = "API" | "WEBHOOK";
+export type MerchantCredential = { credentialId: string; merchantId: string; credentialType: MerchantCredentialType; secretHint: string; status: string; createdAt?: string; rotatedAt?: string; revokedAt?: string };
+// The backend credentialId is the keyId sent as X-Merchant-Key-Id; it returns no separate keyId field.
+export type RotatedCredential = { credentialId: string; credentialType: MerchantCredentialType; secret: string; createdAt: string };
 export type MerchantProduct = { appId: string; bindingId: string; merchantId: string; merchantName: string; productCode: string; productName: string; status: string; createdAt: string; updatedAt: string; supportedPaymentMethods: string };
 type MerchantListParams = {
   page?: number;

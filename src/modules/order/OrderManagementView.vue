@@ -113,6 +113,7 @@ const run = async <T,>(action: () => Promise<T>, success = "") => {
   }
 };
 const loadOrders = async (page = 1) => {
+  if (!hasPermission("order:list")) return;
   listLoading.value = true;
   try {
     const { createdRange, paidRange, ...filters } = orderFilters.value;
@@ -141,9 +142,9 @@ const loadOrderFilterOptions = async () => {
   if (orderFilterMerchants.value.length && orderFilterCurrencies.value.length && orderFilterProducts.value.length) return;
   try {
     const [merchantPage, currencies, productPageResult] = await Promise.all([
-      getMerchants({ page: 1, pageSize: 100, status: "ACTIVE" }),
-      getActiveCurrencies(),
-      getProducts({ page: 1, pageSize: 100, status: "ACTIVE" }),
+      hasPermission("merchant:list") ? getMerchants({ page: 1, pageSize: 100, status: "ACTIVE" }) : Promise.resolve({ items: [] }),
+      hasPermission("master-data:list") ? getActiveCurrencies() : Promise.resolve([]),
+      hasPermission("product:list") ? getProducts({ page: 1, pageSize: 100, status: "ACTIVE" }) : Promise.resolve({ items: [] }),
     ]);
     orderFilterMerchants.value = merchantPage.items;
     orderFilterCurrencies.value = currencies;
@@ -153,7 +154,7 @@ const loadOrderFilterOptions = async () => {
   }
 };
 const loadOrderCreateCurrencies = async (countryCode: string, preferredCurrency = "") => {
-  orderCreateCurrencies.value = countryCode ? await getActiveCurrencies(countryCode) : [];
+  orderCreateCurrencies.value = countryCode && hasPermission("master-data:list") ? await getActiveCurrencies(countryCode) : [];
   const selectedCurrency =
     preferredCurrency && orderCreateCurrencies.value.some((currency) => currency.code === preferredCurrency)
       ? preferredCurrency
@@ -175,7 +176,7 @@ const selectOrderProduct = async () => {
     return;
   }
   const [capabilities] = await Promise.all([
-    getProductCapabilities(product.productCode, { page: 1, pageSize: 100 }),
+    hasPermission("product-capability:list") ? getProductCapabilities(product.productCode, { page: 1, pageSize: 100 }) : Promise.resolve({ items: [] }),
     loadOrderCreateCurrencies(product.defaultCountry, product.defaultCurrency),
   ]);
   orderCreateCapabilities.value = capabilities.items;
@@ -183,7 +184,7 @@ const selectOrderProduct = async () => {
   orderForm.value.payModel = orderPaymentMethods.value[0] || "";
 };
 const selectOrderMerchant = async () => {
-  orderCreateMerchantProducts.value = orderForm.value.merchantId
+  orderCreateMerchantProducts.value = orderForm.value.merchantId && hasPermission("merchant-product:list")
     ? (await getMerchantProducts({ merchantId: orderForm.value.merchantId, status: "ACTIVE", page: 1, pageSize: 100 })).items
     : [];
   const currentProductIsBound = orderSelectableProducts.value.some(
@@ -201,9 +202,9 @@ const loadOrderCreateReferences = async () => {
   orderCreateLoading.value = true;
   try {
     const [merchantPage, productPageResult, countries] = await Promise.all([
-      getMerchants({ page: 1, pageSize: 100, status: "ACTIVE" }),
-      getProducts({ page: 1, pageSize: 100, status: "ACTIVE" }),
-      getActiveCountries(),
+      hasPermission("merchant:list") ? getMerchants({ page: 1, pageSize: 100, status: "ACTIVE" }) : Promise.resolve({ items: [] }),
+      hasPermission("product:list") ? getProducts({ page: 1, pageSize: 100, status: "ACTIVE" }) : Promise.resolve({ items: [] }),
+      hasPermission("master-data:list") ? getActiveCountries() : Promise.resolve([]),
     ]);
     orderCreateMerchants.value = merchantPage.items;
     orderCreateProducts.value = productPageResult.items;
@@ -221,11 +222,12 @@ const resetOrderFilters = async () => {
   await loadOrders(1);
 };
 const findOrder = async () => {
-  if (!queryId.value.trim()) return;
+  if (!hasPermission("order:list") || !queryId.value.trim()) return;
   const result = await run(() => getOrder(queryId.value.trim()));
   if (result) selectedOrder.value = result;
 };
 const createNewOrder = async () => {
+  if (!canManageOrders.value || busy.value) return;
   if (
     !orderForm.value.merchantId.trim() ||
     !orderForm.value.merchantOrderNo.trim() ||
@@ -273,6 +275,7 @@ const createNewOrder = async () => {
   }
 };
 const openCreateOrder = async () => {
+  if (!canManageOrders.value) return;
   orderForm.value = {
     merchantId: "",
     merchantOrderNo: `web-${Date.now()}`,
@@ -287,6 +290,7 @@ const openCreateOrder = async () => {
 };
 const formatOrderTime = (value?: string) => value?.replace("T", " ").replace(/\.\d+Z?$/, "") || "--";
 const inspectOrder = async (order: Order) => {
+  if (!hasPermission("order:list")) return;
   selectedOrder.value = order;
   queryId.value = order.orderId;
   orderDrawer.value = "detail";
@@ -294,7 +298,7 @@ const inspectOrder = async (order: Order) => {
   if (result) selectedOrder.value = result;
 };
 const refreshOrderStatus = async () => {
-  if (!selectedOrder.value) return;
+  if (!hasPermission("order:list") || !selectedOrder.value) return;
   const result = await run(
     () => getOrder(selectedOrder.value!.orderId),
     "订单状态已刷新",
@@ -328,13 +332,13 @@ watch(() => props.reload, loadPageData);
     </div>
     <form class="order-list-filter" @submit.prevent="loadOrders(1)">
       <div class="order-filter-fields">
-        <label class="management-form-item"><span>商户</span><select v-model="orderFilters.merchantId"><option value="">全部商户</option><option v-for="merchant in orderFilterMerchants" :key="merchant.merchantId" :value="merchant.merchantId">{{ merchant.name }} · {{ merchant.merchantId }}</option></select></label>
+        <label class="management-form-item"><span>商户</span><select v-if="hasPermission('merchant:list')" v-model="orderFilters.merchantId"><option value="">全部商户</option><option v-for="merchant in orderFilterMerchants" :key="merchant.merchantId" :value="merchant.merchantId">{{ merchant.name }} · {{ merchant.merchantId }}</option></select><input v-else v-model.trim="orderFilters.merchantId" placeholder="输入商户 ID" /></label>
         <label class="management-form-item"><span>商户订单号</span><input v-model.trim="orderFilters.merchantOrderNo" placeholder="支持模糊匹配" /></label>
         <label class="management-form-item"><span>订单号</span><input v-model.trim="orderFilters.orderId" placeholder="输入平台订单号" /></label>
-        <label class="management-form-item"><span>支付产品</span><select v-model="orderFilters.productCode"><option value="">全部产品</option><option v-for="product in orderFilterProducts" :key="product.productCode" :value="product.productCode">{{ product.name }} · {{ product.productCode }}</option></select></label>
+        <label class="management-form-item"><span>支付产品</span><select v-if="hasPermission('product:list')" v-model="orderFilters.productCode"><option value="">全部产品</option><option v-for="product in orderFilterProducts" :key="product.productCode" :value="product.productCode">{{ product.name }} · {{ product.productCode }}</option></select><input v-else v-model.trim="orderFilters.productCode" placeholder="输入产品编码" /></label>
         <label class="management-form-item"><span>订单类型</span><select v-model="orderFilters.orderType"><option value="">全部类型</option><option value="PAYIN">收单</option><option value="PAYOUT">出款</option></select></label>
         <label class="management-form-item"><span>订单状态</span><select v-model="orderFilters.status"><option value="">全部状态</option><option value="CREATED">已创建</option><option value="PAYING">处理中</option><option value="SUCCESS">成功</option><option value="FAILED">失败</option><option value="UNKNOWN">待确认</option><option value="CANCELED">已取消</option></select></label>
-        <label class="management-form-item"><span>交易币种</span><select v-model="orderFilters.currency"><option value="">全部币种</option><option v-for="currency in orderFilterCurrencies" :key="currency.code" :value="currency.code">{{ currency.code }} · {{ currency.name }}</option></select></label>
+        <label class="management-form-item"><span>交易币种</span><select v-if="hasPermission('master-data:list')" v-model="orderFilters.currency"><option value="">全部币种</option><option v-for="currency in orderFilterCurrencies" :key="currency.code" :value="currency.code">{{ currency.code }} · {{ currency.name }}</option></select><input v-else v-model.trim="orderFilters.currency" placeholder="输入币种，如 USD" /></label>
         <label class="management-form-item"><span>下单时间</span><ElDatePicker v-model="orderFilters.createdRange" type="datetimerange" value-format="YYYY-MM-DDTHH:mm:ss" format="YYYY-MM-DD HH:mm:ss" range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间" /></label>
         <label class="management-form-item"><span>支付时间</span><ElDatePicker v-model="orderFilters.paidRange" type="datetimerange" value-format="YYYY-MM-DDTHH:mm:ss" format="YYYY-MM-DD HH:mm:ss" range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间" /></label>
       </div>
@@ -460,7 +464,7 @@ watch(() => props.reload, loadPageData);
             <p v-if="cancelOrderDisabledReason" class="order-action-hint">取消订单不可用：{{ cancelOrderDisabledReason }}</p>
             <p v-if="notificationDisabledReason" class="order-action-hint">再次通知不可用：{{ notificationDisabledReason }}</p>
           </div>
-          <RefundView v-if="canRefundSelectedOrder" :order="selectedOrder" @notice="emit('notice', $event)" />
+          <RefundView v-if="hasPermission('order:list') || canManageOrders" :key="selectedOrder.orderId" :order="selectedOrder" :can-create="canRefundSelectedOrder" @notice="emit('notice', $event)" />
           </div>
         </template>
       </template>
