@@ -11,6 +11,7 @@ const pageQuery = (params: UserListParams) => {
 export const getUsers = (params: UserListParams = {}) => request<PageResponse<AdminUser>>(`/admin/v1/users?${pageQuery(params)}`);
 export const createUser = (payload: { username: string; password: string; displayName: string; roles: string[] }) => request<AdminUser>("/admin/v1/users", { method: "POST", body: JSON.stringify(payload) });
 export const updateUser = (id: number, payload: { displayName: string; roles: string[] }) => request<AdminUser>(`/admin/v1/users/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+export const updateUserRoles = (id: number, roles: string[]) => request<AdminUser>(`/admin/v1/users/${id}/roles`, { method: "PUT", body: JSON.stringify({ roles }) });
 export const changeUserStatus = (id: number, status: string) => request<AdminUser>(`/admin/v1/users/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
 export const resetUserPassword = (id: number, newPassword: string) => request<void>(`/admin/v1/users/${id}/reset-password`, { method: "POST", body: JSON.stringify({ newPassword }) });
 export type UserDataScope = { userId: number; merchantIds: string[] };

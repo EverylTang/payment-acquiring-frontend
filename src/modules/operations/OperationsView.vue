@@ -35,15 +35,16 @@ const settlementBills = ref<SettlementBill[]>([]);
 const billForm = ref({ billId: "", channelId: "", billDate: new Date().toISOString().slice(0, 10), currency: "USD", totalAmount: 0, totalCount: 0, lines: "[]" });
 const reconcileBillId = ref("");
 const loading = ref(false);
-const localPageSize = ref(20);
+const outboxPageSize = ref(20);
+const differencePageSize = ref(20);
 const outboxPage = ref(1);
 const differencePage = ref(1);
 const paymentEventPage = ref(1);
 const paymentEventPageSize = ref(20);
 const auditPage = ref({ current: 1, pageSize: 10, total: 0 });
 const settlementBillPage = ref({ current: 1, pageSize: 10, total: 0 });
-const visibleOutbox = computed(() => outbox.value.slice((outboxPage.value - 1) * localPageSize.value, outboxPage.value * localPageSize.value));
-const visibleDifferences = computed(() => differences.value.slice((differencePage.value - 1) * localPageSize.value, differencePage.value * localPageSize.value));
+const visibleOutbox = computed(() => outbox.value.slice((outboxPage.value - 1) * outboxPageSize.value, outboxPage.value * outboxPageSize.value));
+const visibleDifferences = computed(() => differences.value.slice((differencePage.value - 1) * differencePageSize.value, differencePage.value * differencePageSize.value));
 const visiblePaymentEvents = computed(() => failedPaymentEvents.value.slice((paymentEventPage.value - 1) * paymentEventPageSize.value, paymentEventPage.value * paymentEventPageSize.value));
 const selectedOutboxDetail = ref<Record<string, unknown> | null>(null);
 const selectedSettlementBill = ref<SettlementBillDetail | null>(null);
@@ -51,38 +52,48 @@ const selectedPaymentEvent = ref<PaymentEvent | null>(null);
 const replayingPaymentEvent = ref<PaymentEvent | null>(null);
 const text = (value: unknown) => value == null ? "" : String(value);
 const lineValue = (line: Record<string, unknown>, key: string) => line[key] ?? line[key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)];
-const changeOutboxPageSize = (pageSize: number) => { localPageSize.value = pageSize; outboxPage.value = 1; };
-const changeDifferencePageSize = (pageSize: number) => { localPageSize.value = pageSize; differencePage.value = 1; };
+const changeOutboxPageSize = (pageSize: number) => { outboxPageSize.value = pageSize; outboxPage.value = 1; };
+const changeDifferencePageSize = (pageSize: number) => { differencePageSize.value = pageSize; differencePage.value = 1; };
 const changePaymentEventPageSize = (pageSize: number) => { paymentEventPageSize.value = pageSize; paymentEventPage.value = 1; };
+type OperationSection = "outbox" | "differences" | "audits" | "payments" | "bills";
+const sectionErrors = ref<Partial<Record<OperationSection, string>>>({});
 const load = async (currentAuditPage = auditPage.value.current, currentSettlementBillPage = settlementBillPage.value.current) => {
   loading.value = true;
+  const failures: string[] = [];
+  const fetchSection = async (section: OperationSection, permission: string, label: string, action: () => Promise<void>) => {
+    if (!hasPermission(permission)) return;
+    delete sectionErrors.value[section];
+    try { await action(); }
+    catch (error) {
+      const message = `${label}：${error instanceof Error ? error.message : "加载失败"}`;
+      sectionErrors.value[section] = message;
+      failures.push(message);
+    }
+  };
   try {
-    const [o, d, a, p, b] = await Promise.all([
-      hasPermission("outbox:list") ? getDeadOutbox() : Promise.resolve({ items: [] as OutboxEvent[] }),
-      hasPermission("reconciliation:difference:list") ? getReconciliationDifferences() : Promise.resolve({ items: [] as ReconciliationDifference[] }),
-      hasPermission("audit:list")
-        ? getOperationAudits({ page: currentAuditPage, pageSize: auditPage.value.pageSize })
-        : Promise.resolve({ items: [] as OperationAudit[], page: currentAuditPage, pageSize: auditPage.value.pageSize, total: 0 }),
-      hasPermission("payment-event:list") ? getFailedPaymentEvents() : Promise.resolve({ items: [] as PaymentEvent[] }),
-      hasPermission("reconciliation:bill:list")
-        ? getSettlementBills({ page: currentSettlementBillPage, pageSize: settlementBillPage.value.pageSize })
-        : Promise.resolve({ items: [] as SettlementBill[], page: currentSettlementBillPage, pageSize: settlementBillPage.value.pageSize, total: 0 }),
+    await Promise.all([
+      fetchSection("outbox", "outbox:list", "死信消息", async () => {
+        outbox.value = (await getDeadOutbox()).items; outboxPage.value = 1;
+      }),
+      fetchSection("differences", "reconciliation:difference:list", "对账差异", async () => {
+        differences.value = (await getReconciliationDifferences()).items; differencePage.value = 1;
+      }),
+      fetchSection("audits", "audit:list", "操作审计", async () => {
+        const result = await getOperationAudits({ page: currentAuditPage, pageSize: auditPage.value.pageSize });
+        audits.value = result.items;
+        auditPage.value = { current: result.page, pageSize: result.pageSize, total: result.total };
+      }),
+      fetchSection("payments", "payment-event:list", "支付事件", async () => {
+        failedPaymentEvents.value = (await getFailedPaymentEvents()).items; paymentEventPage.value = 1;
+      }),
+      fetchSection("bills", "reconciliation:bill:list", "渠道结算账单", async () => {
+        const result = await getSettlementBills({ page: currentSettlementBillPage, pageSize: settlementBillPage.value.pageSize });
+        settlementBills.value = result.items;
+        settlementBillPage.value = { current: result.page, pageSize: result.pageSize, total: result.total };
+      }),
     ]);
-    outbox.value = o.items;
-    differences.value = d.items;
-    audits.value = a.items;
-    failedPaymentEvents.value = p.items;
-    settlementBills.value = b.items;
-    auditPage.value = { current: a.page, pageSize: a.pageSize, total: a.total };
-    settlementBillPage.value = { current: b.page, pageSize: b.pageSize, total: b.total };
-    outboxPage.value = 1;
-    differencePage.value = 1;
-    paymentEventPage.value = 1;
-  } catch (e) {
-    emit("notice", e instanceof Error ? e.message : "运营数据加载失败");
-  } finally {
-    loading.value = false;
-  }
+    if (failures.length) emit("notice", failures.join("；"));
+  } finally { loading.value = false; }
 };
 const openOutboxDetail = async (eventId: string) => {
   try {
@@ -189,8 +200,10 @@ onMounted(load);
     </div>
     <template v-if="hasPermission('outbox:list')">
       <h4>Outbox / DLQ</h4>
+      <p class="operation-help">仅显示接口返回的死信集合（默认最多 50 条），分页数量不是全库总数。</p>
+      <p v-if="sectionErrors.outbox" class="operation-error" role="alert">{{ sectionErrors.outbox }}；下方如有数据为上次加载结果。</p>
       <div v-if="loading" class="empty">加载中…</div>
-      <div v-else-if="!outbox.length" class="empty">暂无死信消息</div>
+      <div v-else-if="!outbox.length && !sectionErrors.outbox" class="empty">暂无死信消息</div>
       <div v-else class="record-list">
         <div v-for="event in visibleOutbox" :key="event.eventId" class="record-row">
           <div>
@@ -202,11 +215,14 @@ onMounted(load);
           ><button v-if="hasPermission('outbox:redrive')" class="outline-btn" @click="redrive(event)">重新投递</button>
         </div>
       </div>
-      <AppPagination :page="outboxPage" :page-size="localPageSize" :total="outbox.length" noun="条死信消息" @change="(page) => outboxPage = page" @size-change="changeOutboxPageSize" />
+      <AppPagination :page="outboxPage" :page-size="outboxPageSize" :total="outbox.length" noun="条死信消息" @change="(page) => outboxPage = page" @size-change="changeOutboxPageSize" />
     </template>
     <template v-if="hasPermission('payment-event:list')">
       <h4>支付事件重放</h4>
-      <div v-if="!failedPaymentEvents.length" class="empty">暂无失败支付事件</div>
+      <p class="operation-help">仅显示接口返回的失败支付事件（默认最多 50 条），不是入站渠道回调历史。</p>
+      <p v-if="sectionErrors.payments" class="operation-error" role="alert">{{ sectionErrors.payments }}；下方如有数据为上次加载结果。</p>
+      <div v-if="loading" class="empty">加载中…</div>
+      <div v-else-if="!failedPaymentEvents.length && !sectionErrors.payments" class="empty">暂无失败支付事件</div>
       <div v-else class="record-list">
         <div v-for="(event, index) in visiblePaymentEvents" :key="text(event.eventId) || text(event.id) || index" class="record-row">
           <div>
@@ -229,8 +245,9 @@ onMounted(load);
     </template>
     <template v-if="hasPermission('reconciliation:bill:list')">
       <h4>渠道结算账单</h4>
+      <p v-if="sectionErrors.bills" class="operation-error" role="alert">{{ sectionErrors.bills }}；下方如有数据为上次加载结果。</p>
       <div v-if="loading && !settlementBills.length" class="empty">加载中…</div>
-      <div v-else-if="!settlementBills.length" class="empty">暂无渠道结算账单</div>
+      <div v-else-if="!settlementBills.length && !sectionErrors.bills" class="empty">暂无渠道结算账单</div>
       <div v-else class="record-list">
         <div v-for="bill in settlementBills" :key="bill.billId" class="record-row">
           <div>
@@ -246,7 +263,9 @@ onMounted(load);
     </template>
     <template v-if="hasPermission('reconciliation:difference:list')">
       <h4>对账差异</h4>
-      <div v-if="!differences.length" class="empty">暂无未处理差异</div>
+      <p v-if="sectionErrors.differences" class="operation-error" role="alert">{{ sectionErrors.differences }}；下方如有数据为上次加载结果。</p>
+      <div v-if="loading" class="empty">加载中…</div>
+      <div v-else-if="!differences.length && !sectionErrors.differences" class="empty">暂无未处理差异</div>
       <div v-else class="record-list">
         <div
           v-for="item in visibleDifferences"
@@ -261,11 +280,13 @@ onMounted(load);
           ><button v-if="hasPermission('reconciliation:difference:resolve')" class="outline-btn" @click="resolve(item)">处理</button>
         </div>
       </div>
-      <AppPagination :page="differencePage" :page-size="localPageSize" :total="differences.length" noun="条差异" @change="(page) => differencePage = page" @size-change="changeDifferencePageSize" />
+      <AppPagination :page="differencePage" :page-size="differencePageSize" :total="differences.length" noun="条差异" @change="(page) => differencePage = page" @size-change="changeDifferencePageSize" />
     </template>
     <template v-if="hasPermission('audit:list')">
       <h4>后台操作审计</h4>
-      <div v-if="!audits.length" class="empty">暂无操作审计记录</div>
+      <p v-if="sectionErrors.audits" class="operation-error" role="alert">{{ sectionErrors.audits }}；下方如有数据为上次加载结果。</p>
+      <div v-if="loading" class="empty">加载中…</div>
+      <div v-else-if="!audits.length && !sectionErrors.audits" class="empty">暂无操作审计记录</div>
       <div v-else class="record-list">
         <div v-for="item in audits" :key="item.auditId" class="record-row">
           <div>
@@ -323,6 +344,8 @@ onMounted(load);
 </template>
 
 <style scoped>
+.operation-help { color: var(--muted); font-size: 12px; }
+.operation-error { color: var(--danger); font-size: 12px; }
 .operation-form { display: grid; gap: 10px; margin: 24px 0; padding: 20px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
 .operation-form .panel-title { margin: 0; }
 .operation-form .panel-title h4 { margin: 5px 0 0; font-size: 14px; }

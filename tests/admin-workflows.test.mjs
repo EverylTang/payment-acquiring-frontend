@@ -28,7 +28,9 @@ const views = {
   product: '/src/modules/product/ProductManagementView.vue',
   role: '/src/modules/permission/PermissionManagementView.vue',
   order: '/src/modules/order/OrderManagementView.vue',
-  settlement: '/src/modules/settlement/SettlementManagementView.vue'
+  settlement: '/src/modules/settlement/SettlementManagementView.vue',
+  operations: '/src/modules/operations/OperationsView.vue',
+  user: '/src/modules/user/UserManagementView.vue'
 };
 const setup = window.workflowSetup;
 authState.access = { roles: [], menus: [], permissions: setup.permissions };
@@ -52,6 +54,8 @@ async function mount(t, browser, view, permissions, handler, props = {}, options
   const calls = [], unexpected = [], errors = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.addInitScript(setup => { window.workflowSetup = setup; }, { view, permissions, props });
+  // 字体样式不是业务回归目标，避免外部 CDN 延迟阻塞页面加载。
+  await page.route("https://fonts.googleapis.com/**", route => route.fulfill({ contentType: "text/css", body: "" }));
   await page.route("**/api/**", async route => {
     const request = route.request();
     const url = new URL(request.url());
@@ -394,5 +398,238 @@ test("管理后台功能与分权浏览器回归", async t => {
     assert.equal(await page.getByRole("button", { name: /手动执行|执行批次/ }).count(), 0);
     assert.deepEqual(calls.map(call => `${call.method} ${call.path}`), ["GET /settlement/batches/B_TEST"]);
     await snapshot(page, "settlement-readonly");
+  });
+
+  const testUser = { id: 1, username: "synthetic_user", displayName: "合成测试用户", status: "ACTIVE", roles: ["LEGACY_TEST"] };
+  await t.test("用户只读列表不请求角色或数据范围，刷新失败标记旧数据", async t => {
+    let fail = false;
+    const { page, calls } = await mount(t, browser, "user", ["system:user:list"], call => {
+      if (call.path === "/users") return fail ? failure("合成用户刷新失败") : pageOf([testUser]);
+    });
+    await page.getByText(testUser.displayName, { exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: /编辑|数据范围|重置密码|配置角色/ }).count(), 0);
+    fail = true;
+    await page.getByRole("button", { name: "查询", exact: true }).click();
+    await page.getByRole("alert").filter({ hasText: "合成用户刷新失败" }).waitFor();
+    assert.ok(await page.getByText(testUser.displayName, { exact: true }).isVisible());
+    assert.ok(calls.every(call => call.path === "/users" && call.method === "GET"));
+  });
+
+  await t.test("角色目录失败不阻断用户列表，保存保留已有角色编码", async t => {
+    const { page, calls } = await mount(t, browser, "user", ["system:user:list", "system:user:update", "system:role:list"], call => {
+      if (call.path === "/roles") return failure("合成角色目录失败");
+      if (call.path === "/users") return pageOf([testUser]);
+      if (call.path === "/users/1" && call.method === "PUT") return { ...testUser, ...call.body };
+    });
+    await page.getByText(testUser.displayName, { exact: true }).waitFor();
+    await page.getByRole("alert").filter({ hasText: "合成角色目录失败" }).waitFor();
+    await page.getByRole("button", { name: "编辑", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "编辑用户", exact: true });
+    assert.equal(await dialog.getByPlaceholder("多个角色编码请用逗号分隔").inputValue(), "LEGACY_TEST");
+    await fillLabel(dialog, "显示名称", "合成新名称");
+    await dialog.getByRole("button", { name: "保存用户", exact: true }).click();
+    await page.locator("#workflow-notices").getByText("用户资料与角色已保存", { exact: true }).waitFor();
+    assert.deepEqual(calls.find(call => call.method === "PUT").body, { displayName: "合成新名称", roles: ["LEGACY_TEST"] });
+    assert.equal(await dialog.getByText("商户数据范围", { exact: true }).count(), 0);
+    assert.equal(await dialog.locator('input[type="password"]').count(), 0);
+  });
+
+  await t.test("角色目录跨页加载，角色专属更新保留目录外的已有角色", async t => {
+    const first = Array.from({ length: 100 }, (_, i) => ({ id: i + 1, roleCode: `ROLE_${i}`, roleName: `合成角色${i}` }));
+    const { page, calls } = await mount(t, browser, "user", ["system:user:list", "system:user:role:update", "system:role:list"], call => {
+      if (call.path === "/users") return pageOf([testUser]);
+      if (call.path === "/roles") return call.query.get("page") === "1" ? pageOf(first, 101) : pageOf([testRole], 101, 2);
+      if (call.path === "/users/1/roles" && call.method === "PUT") return { ...testUser, ...call.body };
+    });
+    await page.getByRole("button", { name: "配置角色", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "编辑用户", exact: true });
+    await dialog.getByRole("checkbox", { name: testRole.roleName, exact: true }).check();
+    assert.ok(await dialog.getByRole("checkbox", { name: "LEGACY_TEST", exact: true }).isChecked());
+    assert.ok(await dialog.getByPlaceholder("请输入显示名称").isDisabled());
+    await dialog.getByRole("button", { name: "保存用户角色", exact: true }).click();
+    await page.locator("#workflow-notices").getByText("用户角色已保存", { exact: true }).waitFor();
+    assert.deepEqual(calls.filter(call => call.method === "PUT").map(call => [call.path, call.body]), [["/users/1/roles", { roles: ["LEGACY_TEST", "TEST"] }]]);
+    assert.ok(calls.some(call => call.path === "/roles" && call.query.get("page") === "2"));
+  });
+
+  await t.test("仅密码重置权限可操作，保存期间禁改禁关且密码不进入通知或存储", async t => {
+    let release;
+    const pending = new Promise(resolve => { release = resolve; });
+    t.after(() => release());
+    const password = "SYNTHETIC_PASSWORD_ONLY";
+    const { page, calls } = await mount(t, browser, "user", ["system:user:list", "system:user:password:reset"], async call => {
+      if (call.path === "/users") return pageOf([testUser]);
+      if (call.path === "/users/1/reset-password" && call.method === "POST") { await pending; return { status: 204 }; }
+    });
+    await page.getByRole("button", { name: "重置密码", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "编辑用户", exact: true });
+    const input = dialog.locator('input[type="password"]');
+    assert.equal(await input.getAttribute("maxlength"), "128");
+    await input.fill("short");
+    assert.ok(await dialog.getByRole("button", { name: "重置密码", exact: true }).isDisabled());
+    await input.fill(password);
+    const passwordRequest = page.waitForRequest(request => request.url().endsWith("/reset-password") && request.method() === "POST");
+    await dialog.getByRole("button", { name: "重置密码", exact: true }).click();
+    await passwordRequest;
+    assert.ok(await input.isDisabled());
+    await dialog.getByTitle("关闭", { exact: true }).click();
+    assert.ok(await dialog.isVisible());
+    release();
+    await page.locator("#workflow-notices").getByText("密码已重置", { exact: true }).waitFor();
+    assert.equal(await input.inputValue(), "");
+    assert.deepEqual(calls.filter(call => call.method !== "GET").map(call => [call.path, call.body]), [["/users/1/reset-password", { newPassword: password }]]);
+    assert.ok(!(await page.locator("#workflow-notices").innerText()).includes(password));
+    assert.ok(!(await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }))).includes(password));
+    assert.equal(await dialog.getByText("商户数据范围", { exact: true }).count(), 0);
+  });
+
+  await t.test("用户范围读取失败禁止覆盖，不误把空输入保存为全部商户", async t => {
+    const { page, calls } = await mount(t, browser, "user", ["system:user:list", "system:data-scope:user:list", "system:data-scope:user:update"], call => {
+      if (call.path === "/users") return pageOf([testUser]);
+      if (call.path === "/data-scopes/users/1") return failure("合成用户范围读取失败");
+    });
+    await page.getByRole("button", { name: "数据范围", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "编辑用户", exact: true });
+    await dialog.getByRole("alert").filter({ hasText: "已禁止覆盖保存" }).waitFor();
+    assert.ok(await dialog.getByRole("button", { name: "保存商户范围", exact: true }).isDisabled());
+    assert.ok(await dialog.getByPlaceholder("多个 ID 请用逗号分隔；留空表示可查看全部商户").isDisabled());
+    assert.ok(calls.every(call => call.method === "GET"));
+    await snapshot(page, "user-scope-failure");
+  });
+
+  await t.test("仅用户范围读取权限能查看配置但不能提交", async t => {
+    const { page, calls } = await mount(t, browser, "user", ["system:user:list", "system:data-scope:user:list"], call => {
+      if (call.path === "/users") return pageOf([testUser]);
+      if (call.path === "/data-scopes/users/1") return { userId: 1, merchantIds: ["M_SYNTHETIC"] };
+    });
+    await page.getByRole("button", { name: "数据范围", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "编辑用户", exact: true });
+    await page.waitForFunction(() => document.querySelector('input[placeholder^="多个 ID"]').value === "M_SYNTHETIC");
+    assert.ok(await dialog.locator("input").isDisabled());
+    assert.equal(await dialog.getByRole("button", { name: "保存商户范围", exact: true }).count(), 0);
+    assert.ok(calls.every(call => call.method === "GET"));
+  });
+
+  await t.test("无原范围读取权限须确认完整替换，取消不写入且角色接口不被调用", async t => {
+    const { page, calls } = await mount(t, browser, "user", ["system:user:list", "system:data-scope:user:update"], call => {
+      if (call.path === "/users") return pageOf([testUser]);
+      if (call.path === "/data-scopes/users/1" && call.method === "PUT") return { userId: 1, ...call.body };
+    });
+    await page.getByRole("button", { name: "数据范围", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "编辑用户", exact: true });
+    await fillLabel(dialog, "商户 ID", " M_A, M_B, M_A ");
+    page.once("dialog", prompt => { assert.match(prompt.message(), /完整替换/); return prompt.dismiss(); });
+    await dialog.getByRole("button", { name: "保存商户范围", exact: true }).click();
+    assert.ok(calls.every(call => call.method === "GET"));
+    page.once("dialog", prompt => { assert.match(prompt.message(), /完整替换/); return prompt.accept(); });
+    await dialog.getByRole("button", { name: "保存商户范围", exact: true }).click();
+    await page.locator("#workflow-notices").getByText("用户商户数据范围已保存", { exact: true }).waitFor();
+    assert.deepEqual(calls.map(call => `${call.method} ${call.path}`), ["GET /users", "PUT /data-scopes/users/1"]);
+    assert.deepEqual(calls[1].body, { merchantIds: ["M_A", "M_B"] });
+  });
+
+  await t.test("清空已读取的用户范围必须确认全部商户访问", async t => {
+    const { page, calls } = await mount(t, browser, "user", ["system:user:list", "system:data-scope:user:list", "system:data-scope:user:update"], call => {
+      if (call.path === "/users") return pageOf([testUser]);
+      if (call.path === "/data-scopes/users/1") return { userId: 1, merchantIds: call.method === "GET" ? ["M_A"] : call.body.merchantIds };
+    });
+    await page.getByRole("button", { name: "数据范围", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "编辑用户", exact: true });
+    await fillLabel(dialog, "商户 ID", "");
+    page.once("dialog", prompt => { assert.match(prompt.message(), /允许查看全部商户/); return prompt.dismiss(); });
+    await dialog.getByRole("button", { name: "保存商户范围", exact: true }).click();
+    assert.equal(calls.filter(call => call.method === "PUT").length, 0);
+    page.once("dialog", prompt => { assert.match(prompt.message(), /允许查看全部商户/); return prompt.accept(); });
+    await dialog.getByRole("button", { name: "保存商户范围", exact: true }).click();
+    await page.locator("#workflow-notices").getByText("用户商户数据范围已保存", { exact: true }).waitFor();
+    assert.deepEqual(calls.find(call => call.method === "PUT").body, { merchantIds: [] });
+  });
+
+  await t.test("关闭后重开另一用户，迟到的范围响应不能覆盖当前配置", async t => {
+    let release;
+    const pending = new Promise(resolve => { release = resolve; });
+    t.after(() => release());
+    const second = { ...testUser, id: 2, username: "synthetic_second", displayName: "合成第二用户" };
+    const { page, calls } = await mount(t, browser, "user", ["system:user:list", "system:data-scope:user:list", "system:data-scope:user:update"], async call => {
+      if (call.path === "/users") return pageOf([testUser, second]);
+      if (call.path === "/data-scopes/users/1") { await pending; return { userId: 1, merchantIds: ["M_OLD"] }; }
+      if (call.path === "/data-scopes/users/2") return { userId: 2, merchantIds: call.method === "GET" ? ["M_CURRENT"] : call.body.merchantIds };
+    });
+    await page.locator("tbody tr").first().getByRole("button", { name: "数据范围", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "编辑用户", exact: true });
+    await dialog.getByText("商户数据范围加载中…", { exact: true }).waitFor();
+    await dialog.getByTitle("关闭", { exact: true }).click();
+    await page.locator("tbody tr").nth(1).getByRole("button", { name: "数据范围", exact: true }).click();
+    const input = dialog.getByPlaceholder("多个 ID 请用逗号分隔；留空表示可查看全部商户");
+    await page.waitForFunction(() => document.querySelector('input[placeholder^="多个 ID"]').value === "M_CURRENT");
+    const oldResponse = page.waitForResponse(response => response.url().endsWith("/data-scopes/users/1"));
+    release();
+    await (await oldResponse).finished();
+    // A subsequent write proves that only the current selection's scope is submitted.
+    await dialog.getByRole("button", { name: "保存商户范围", exact: true }).click();
+    await page.locator("#workflow-notices").getByText("用户商户数据范围已保存", { exact: true }).waitFor();
+    assert.equal(await input.inputValue(), "M_CURRENT");
+    assert.deepEqual(calls.filter(call => call.method === "PUT").map(call => [call.path, call.body]), [["/data-scopes/users/2", { merchantIds: ["M_CURRENT"] }]]);
+  });
+
+  await t.test("新增用户显式指定角色并刷新总数，不隐含授予 OPS", async t => {
+    let created = false;
+    const { page, calls } = await mount(t, browser, "user", ["system:user:list", "system:user:create"], call => {
+      if (call.path === "/users" && call.method === "GET") return pageOf(created ? [testUser] : [], created ? 1 : 0, 1, 10);
+      if (call.path === "/users" && call.method === "POST") { created = true; return testUser; }
+    });
+    await page.getByRole("button", { name: "新增用户", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "新增用户", exact: true });
+    await fillLabel(dialog, "用户名", "synthetic_new");
+    await fillLabel(dialog, "显示名称", "合成新增用户");
+    await dialog.locator('input[type="password"]').fill("SYNTHETIC_NEW_PASSWORD");
+    const save = dialog.getByRole("button", { name: "创建用户", exact: true });
+    assert.ok(await save.isDisabled());
+    assert.equal(await dialog.getByPlaceholder("多个角色编码请用逗号分隔").inputValue(), "");
+    await dialog.getByPlaceholder("多个角色编码请用逗号分隔").pressSequentially("TEST, SECOND_TEST, TEST");
+    await snapshot(page, "user-create-explicit-role");
+    await save.click();
+    await dialog.waitFor({ state: "hidden" });
+    await page.getByText("共 1 个用户", { exact: true }).waitFor();
+    assert.deepEqual(calls.find(call => call.method === "POST").body.roles, ["TEST", "SECOND_TEST"]);
+    assert.equal(calls.filter(call => call.method === "GET").length, 2);
+  });
+
+  await t.test("运营某个接口失败不会阻断其余列表，刷新失败保留旧数据并标记", async t => {
+    let refresh = false;
+    const { page, calls } = await mount(t, browser, "operations", ["outbox:list", "audit:list", "payment-event:list"], call => {
+      if (call.path === "/outbox/dead") return refresh ? failure("合成死信刷新失败") : { items: [{ eventId: "E_SYNTHETIC", eventType: "SYNTHETIC_NOTIFICATION", status: "DEAD", attemptCount: 1 }] };
+      if (call.path === "/audits") return failure("合成审计失败");
+      if (call.path === "/payment-events/failed") return { items: [{ id: 1, eventId: "PE_SYNTHETIC", eventType: "SYNTHETIC_PAYMENT", status: "FAILED" }] };
+    });
+    await page.getByText("SYNTHETIC_NOTIFICATION", { exact: true }).waitFor();
+    await page.getByText("SYNTHETIC_PAYMENT", { exact: true }).waitFor();
+    await page.getByRole("alert").filter({ hasText: "合成审计失败" }).waitFor();
+    assert.equal(await page.getByText("暂无操作审计记录", { exact: true }).count(), 0);
+    refresh = true;
+    await page.getByRole("button", { name: "刷新", exact: true }).click();
+    await page.getByRole("alert").filter({ hasText: "合成死信刷新失败" }).waitFor();
+    await page.getByText("SYNTHETIC_NOTIFICATION", { exact: true }).waitFor();
+    await snapshot(page, "operations-isolation");
+    assert.ok(calls.every(call => call.method === "GET"));
+    assert.deepEqual([...new Set(calls.map(call => call.path))].sort(), ["/audits", "/outbox/dead", "/payment-events/failed"]);
+  });
+
+  await t.test("运营无任何查询权限时不调用接口", async t => {
+    const { page, calls } = await mount(t, browser, "operations", [], () => undefined);
+    await page.getByRole("button", { name: "刷新", exact: true }).click();
+    assert.deepEqual(calls, []);
+  });
+
+  await t.test("死信与对账差异分页条数相互独立", async t => {
+    const { page } = await mount(t, browser, "operations", ["outbox:list", "reconciliation:difference:list"], call => {
+      if (call.path === "/outbox/dead") return { items: Array.from({ length: 30 }, (_, i) => ({ eventId: `E_${i}`, eventType: `SYNTHETIC_EVENT_${i}`, status: "DEAD", attemptCount: 1 })) };
+      if (call.path === "/reconciliation/differences") return { items: Array.from({ length: 30 }, (_, i) => ({ difference_id: `D_${i}`, bill_id: "B_SYNTHETIC", difference_type: `SYNTHETIC_DIFF_${i}`, expected_amount: 1, actual_amount: 0, status: "OPEN" })) };
+    });
+    await page.getByText("SYNTHETIC_DIFF_19", { exact: true }).waitFor();
+    await page.locator(".app-pagination").first().locator("select").selectOption("10");
+    assert.equal(await page.getByText("SYNTHETIC_EVENT_10", { exact: true }).count(), 0);
+    assert.equal(await page.getByText("SYNTHETIC_DIFF_19", { exact: true }).count(), 1);
+    assert.equal(await page.locator(".app-pagination").nth(1).locator("select").inputValue(), "20");
   });
 });
